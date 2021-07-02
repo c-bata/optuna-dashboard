@@ -313,7 +313,7 @@ function getComparator<T>(
     : (a, b) => -descendingComparator<T>(a, b, columns, orderBy)
 }
 
-function descendingComparator<T>(
+export function descendingComparator<T>(
   a: T,
   b: T,
   columns: DataGridColumn<T>[],
