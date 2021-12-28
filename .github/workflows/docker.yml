@@ -10,7 +10,6 @@ jobs:
       - uses: actions/checkout@v2
       - run: echo "REPO=${GITHUB_REPOSITORY,,}" >> ${GITHUB_ENV}
       - run: echo "TAG=${GITHUB_REF##*/}" >> $GITHUB_ENV
-
       - run: echo $REPO
       - run: $TAG
         
