@@ -1,6 +1,5 @@
 name: Docker Image CI
 on:
-on:
   pull_request:
     branches:
       - main
