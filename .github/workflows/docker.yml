@@ -11,7 +11,8 @@ jobs:
       - run: echo "REPO=${GITHUB_REPOSITORY,,}" >> ${GITHUB_ENV}
       - run: echo "TAG=${GITHUB_REF##*/}" >> $GITHUB_ENV
       - run: echo $REPO
-      - run: $TAG
+      - run: echo $TAG
+      - run: echo "$REPO $TAG"
         
       - name: Enable buildx
         uses: docker/setup-buildx-action@v1
