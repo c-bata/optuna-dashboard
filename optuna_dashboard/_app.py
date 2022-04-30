@@ -158,7 +158,7 @@ def get_trials(
             and datetime.now() - last_fetched_at < timedelta(seconds=ttl_seconds)
         ):
             return trials
-    trials = storage.get_all_trials(study_id)
+    trials = storage.get_all_trials(study_id, deepcopy=False)
     with trials_cache_lock:
         trials_last_fetched_at[study_id] = datetime.now()
         trials_cache[study_id] = trials
