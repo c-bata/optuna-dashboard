@@ -3,6 +3,7 @@ from typing import Dict
 from typing import List
 from typing import Tuple
 
+from optuna.importance import FanovaImportanceEvaluator
 
 try:
     from typing import TypedDict
@@ -68,7 +69,8 @@ def get_param_importance_from_trials_cache(
 
         study = StudyWrapper(storage, study_id, trials)
         importance = optuna.importance.get_param_importances(
-            study, target=lambda t: t.values[objective_id]
+            study, target=lambda t: t.values[objective_id],
+            evaluator=FanovaImportanceEvaluator(n_trees=4)
         )
         converted = convert_to_importance_type(importance, trials)
         param_importance_cache[cache_key] = (n_completed_trials, converted)
