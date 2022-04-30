@@ -35,6 +35,7 @@ def run_gunicorn(app: Bottle, host: str, port: int, quiet: bool) -> None:
     class Application(BaseApplication):
         def load_config(self) -> None:
             self.cfg.set("bind", f"{host}:{port}")
+            self.cfg.set("threads", 4)
             if quiet:
                 self.cfg.set("loglevel", "error")
 
