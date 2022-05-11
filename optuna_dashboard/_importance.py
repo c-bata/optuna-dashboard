@@ -3,17 +3,22 @@ from typing import Dict
 from typing import List
 from typing import Tuple
 
+from optuna.importance import get_param_importances
+from optuna.storages import BaseStorage
+from optuna.study import Study
+from optuna.trial import FrozenTrial
+from optuna.trial import TrialState
+
 
 try:
     from typing import TypedDict
 except ImportError:
     from typing_extensions import TypedDict
 
-import optuna
-from optuna.storages import BaseStorage
-from optuna.study import Study
-from optuna.trial import FrozenTrial
-from optuna.trial import TrialState
+try:
+    from optuna_fast_fanova import FanovaImportanceEvaluator
+except ImportError:
+    from optuna.importance import FanovaImportanceEvaluator  # type: ignore
 
 
 ImportanceItemType = TypedDict(
@@ -67,8 +72,10 @@ def get_param_importance_from_trials_cache(
             return cache_importance
 
         study = StudyWrapper(storage, study_id, trials)
-        importance = optuna.importance.get_param_importances(
-            study, target=lambda t: t.values[objective_id]
+        importance = get_param_importances(
+            study,
+            target=lambda t: t.values[objective_id],
+            evaluator=FanovaImportanceEvaluator(),
         )
         converted = convert_to_importance_type(importance, trials)
         param_importance_cache[cache_key] = (n_completed_trials, converted)
