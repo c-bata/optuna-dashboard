@@ -173,6 +173,7 @@ def get_trials(
         ):
             return trials
 
+    # TODO: Check Optuna version here.
     if isinstance(storage, RDBStorage):
         trials = storage._get_trials(
             study_id=study_id,
