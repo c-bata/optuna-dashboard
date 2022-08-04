@@ -172,12 +172,16 @@ def get_trials(
             and datetime.now() - last_fetched_at < timedelta(seconds=ttl_seconds)
         ):
             return trials
-    trials = storage._get_trials(
-        study_id=study_id,
-        states=None,
-        excluded_trial_ids=set(),
-        offset=after,
-    )
+
+    if isinstance(storage, RDBStorage):
+        trials = storage._get_trials(
+            study_id=study_id,
+            states=None,
+            excluded_trial_ids=set(),
+            offset=after,
+        )
+    else:
+        trials = storage.get_all_trials(study_id, deepcopy=False)
     # TODO(c-bata): Avoid to sort trials after fixed https://github.com/optuna/optuna/issues/3605
     if isinstance(storage, RDBStorage) and storage.url.startswith("postgresql"):
         trials = sorted(trials, key=lambda t: t.number)
