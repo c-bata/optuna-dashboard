@@ -10,7 +10,6 @@
     "lint": "eslint . --ext .ts,.tsx && prettier --list-different \"optuna_dashboard/ts/**/*.{ts,tsx}\" \"typescript_tests/*.{ts,tsx}\"",
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview",
     "test": "jest typescript_tests"
   },
   "author": "Masashi Shibata",
