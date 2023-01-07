@@ -41,6 +41,7 @@ export const GraphSlice: FC<{
   const [paramTargets, selectedParamTarget, setParamTarget] =
     useParamTargets(searchSpace)
   const [logYScale, setLogYScale] = useState<boolean>(false)
+  const [zoomed, setZoomed] = useState<boolean>(false)
 
   const trials = useFilteredTrials(
     study,
@@ -52,14 +53,17 @@ export const GraphSlice: FC<{
   )
 
   useEffect(() => {
-    plotSlice(
-      trials,
-      selectedObjective,
-      selectedParamTarget,
-      searchSpace.find((s) => s.name === selectedParamTarget?.key) || null,
-      logYScale,
-      theme.palette.mode
-    )
+    if (!zoomed) {
+      plotSlice(
+        trials,
+        selectedObjective,
+        selectedParamTarget,
+        searchSpace.find((s) => s.name === selectedParamTarget?.key) || null,
+        logYScale,
+        setZoomed,
+        theme.palette.mode
+      )
+    }
   }, [
     trials,
     selectedObjective,
@@ -70,14 +74,17 @@ export const GraphSlice: FC<{
   ])
 
   const handleObjectiveChange = (event: SelectChangeEvent<string>) => {
+    setZoomed(false)
     setObjectiveTarget(event.target.value)
   }
 
   const handleSelectedParam = (e: SelectChangeEvent<string>) => {
+    setZoomed(false)
     setParamTarget(e.target.value)
   }
 
   const handleLogYScaleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setZoomed(false)
     setLogYScale(!logYScale)
   }
 
@@ -145,9 +152,11 @@ const plotSlice = (
   selectedParamTarget: Target | null,
   selectedParamSpace: SearchSpaceItem | null,
   logYScale: boolean,
+  setZoomed: (zoomed: boolean) => void,
   mode: string
 ) => {
-  if (document.getElementById(plotDomId) === null) {
+  const graphDiv = document.getElementById(plotDomId)
+  if (graphDiv === null) {
     return
   }
 
@@ -220,7 +229,7 @@ const plotSlice = (
       gridwidth: 1,
       automargin: true, // Otherwise the label is outside of the plot
     }
-    plotly.react(plotDomId, trace, layout)
+    plotly.react(graphDiv, trace, layout)
   } else {
     const vocabArr = selectedParamSpace.distribution.choices.map((c) => c.value)
     const tickvals: number[] = vocabArr.map((v, i) => i)
@@ -252,6 +261,20 @@ const plotSlice = (
       ticktext: vocabArr,
       automargin: true, // Otherwise the label is outside of the plot
     }
-    plotly.react(plotDomId, trace, layout)
+    plotly.react(graphDiv, trace, layout)
   }
+  // @ts-ignore
+  graphDiv.once("plotly_relayout", (event) => {
+    if (
+      event["xaxis.range[0]"] ||
+      event["yaxis.range[0]"] ||
+      event["xaxis.range[1]"] ||
+      event["yaxis.range[1]"]
+    ) {
+      setZoomed(true)
+    }
+    if (event["xaxis.autorange"] || event["yaxis.autorange"]) {
+      setZoomed(false)
+    }
+  })
 }

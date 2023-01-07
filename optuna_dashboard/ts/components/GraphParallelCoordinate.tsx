@@ -21,7 +21,8 @@ import { useMergedUnionSearchSpace } from "../searchSpace"
 const plotDomId = "graph-parallel-coordinate"
 
 const useTargets = (
-  study: StudyDetail | null
+  study: StudyDetail | null,
+  setRestyle: (zoomed: boolean) => void
 ): [Target[], SearchSpaceItem[], () => ReactNode] => {
   const [targets1, _target1, _setter1] = useObjectiveAndUserAttrTargets(study)
   const searchSpace = useMergedUnionSearchSpace(study?.union_search_space)
@@ -48,6 +49,7 @@ const useTargets = (
   }, [allTargets])
 
   const handleOnChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setRestyle(false)
     setChecked(
       checked.map((c, i) =>
         i.toString() === event.target.name ? event.target.checked : c
@@ -85,12 +87,20 @@ export const GraphParallelCoordinate: FC<{
   study: StudyDetail | null
 }> = ({ study = null }) => {
   const theme = useTheme()
-  const [targets, searchSpace, renderCheckBoxes] = useTargets(study)
+  const [zoomed, setZoomed] = useState<boolean>(false)
+  const [targets, searchSpace, renderCheckBoxes] = useTargets(study, setZoomed)
 
   const trials = useFilteredTrials(study, targets, false, false)
   useEffect(() => {
-    if (study !== null) {
-      plotCoordinate(study, trials, targets, searchSpace, theme.palette.mode)
+    if (study !== null && !zoomed) {
+      plotCoordinate(
+        study,
+        trials,
+        targets,
+        searchSpace,
+        setZoomed,
+        theme.palette.mode
+      )
     }
   }, [study, trials, targets, searchSpace, theme.palette.mode])
 
@@ -124,9 +134,11 @@ const plotCoordinate = (
   trials: Trial[],
   targets: Target[],
   searchSpace: SearchSpaceItem[],
+  setRestyle: (restyle: boolean) => void,
   mode: string
 ) => {
-  if (document.getElementById(plotDomId) === null) {
+  const graphDiv = document.getElementById(plotDomId)
+  if (graphDiv === null) {
     return
   }
 
@@ -233,5 +245,9 @@ const plotCoordinate = (
     },
   ]
 
-  plotly.react(plotDomId, plotData, layout)
+  plotly.react(graphDiv, plotData, layout)
+  // @ts-ignore
+  graphDiv.once("plotly_restyle", (event) => {
+    setRestyle(true)
+  })
 }

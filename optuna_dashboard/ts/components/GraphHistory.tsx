@@ -32,6 +32,7 @@ export const GraphHistory: FC<{
   const [logScale, setLogScale] = useState<boolean>(false)
   const [filterCompleteTrial, setFilterCompleteTrial] = useState<boolean>(false)
   const [filterPrunedTrial, setFilterPrunedTrial] = useState<boolean>(false)
+  const [zoomed, setZoomed] = useState<boolean>(false)
 
   const [targets, selected, setTarget] = useObjectiveAndUserAttrTargets(study)
   const trials = useFilteredTrials(
@@ -42,13 +43,14 @@ export const GraphHistory: FC<{
   )
 
   useEffect(() => {
-    if (study !== null) {
+    if (study !== null && !zoomed) {
       plotHistory(
         trials,
         study.directions,
         selected,
         xAxis,
         logScale,
+        setZoomed,
         theme.palette.mode
       )
     }
@@ -64,22 +66,27 @@ export const GraphHistory: FC<{
   ])
 
   const handleObjectiveChange = (event: SelectChangeEvent<string>) => {
+    setZoomed(false)
     setTarget(event.target.value)
   }
 
   const handleXAxisChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setZoomed(false)
     setXAxis(e.target.value)
   }
 
   const handleLogScaleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setZoomed(false)
     setLogScale(!logScale)
   }
 
   const handleFilterCompleteChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setZoomed(false)
     setFilterCompleteTrial(!filterCompleteTrial)
   }
 
   const handleFilterPrunedChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setZoomed(false)
     setFilterPrunedTrial(!filterPrunedTrial)
   }
 
@@ -191,9 +198,11 @@ const plotHistory = (
   target: Target,
   xAxis: string,
   logScale: boolean,
+  setZoomed: (zoomed: boolean) => void,
   mode: string
 ) => {
-  if (document.getElementById(plotDomId) === null) {
+  const graphDiv = document.getElementById(plotDomId)
+  if (graphDiv === null) {
     return
   }
 
@@ -285,5 +294,19 @@ const plotHistory = (
       type: "scatter",
     })
   }
-  plotly.react(plotDomId, plotData, layout)
+  plotly.react(graphDiv, plotData, layout)
+  // @ts-ignore
+  graphDiv.once("plotly_relayout", (event) => {
+    if (
+      event["xaxis.range[0]"] ||
+      event["yaxis.range[0]"] ||
+      event["xaxis.range[1]"] ||
+      event["yaxis.range[1]"]
+    ) {
+      setZoomed(true)
+    }
+    if (event["xaxis.autorange"] || event["yaxis.autorange"]) {
+      setZoomed(false)
+    }
+  })
 }

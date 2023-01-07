@@ -73,7 +73,7 @@ export const StudyDetailBeta: FC<{
     }
     const intervalId = setInterval(function () {
       action.updateStudyDetail(studyId)
-    }, reloadInterval * 1000)
+    }, reloadInterval * 10)
     return () => clearInterval(intervalId)
   }, [reloadInterval, studyDetail, page])
 

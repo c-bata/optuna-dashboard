@@ -101,7 +101,8 @@ const plotEdf = (
   domId: string,
   mode: string
 ) => {
-  if (document.getElementById(domId) === null) {
+  const graphDiv = document.getElementById(domId)
+  if (graphDiv === null) {
     return
   }
   if (trials.length === 0) {
@@ -150,5 +151,5 @@ const plotEdf = (
       y: yValues,
     },
   ]
-  plotly.react(domId, plotData, layout)
+  plotly.react(graphDiv, plotData, layout)
 }
