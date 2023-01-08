@@ -32,6 +32,7 @@ export const GraphHistory: FC<{
   const [logScale, setLogScale] = useState<boolean>(false)
   const [filterCompleteTrial, setFilterCompleteTrial] = useState<boolean>(false)
   const [filterPrunedTrial, setFilterPrunedTrial] = useState<boolean>(false)
+  const [zoomed, setZoomed] = useState<boolean>(false)
 
   const [targets, selected, setTarget] = useObjectiveAndUserAttrTargets(study)
   const trials = useFilteredTrials(
@@ -42,7 +43,12 @@ export const GraphHistory: FC<{
   )
 
   useEffect(() => {
-    if (study !== null) {
+    console.log("called")
+    renderEmptyPlot(setZoomed, theme.palette.mode)
+  }, [])
+
+  useEffect(() => {
+    if (study !== null && !zoomed) {
       plotHistory(
         trials,
         study.directions,
@@ -64,22 +70,27 @@ export const GraphHistory: FC<{
   ])
 
   const handleObjectiveChange = (event: SelectChangeEvent<string>) => {
+    setZoomed(false)
     setTarget(event.target.value)
   }
 
   const handleXAxisChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setZoomed(false)
     setXAxis(e.target.value)
   }
 
   const handleLogScaleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setZoomed(false)
     setLogScale(!logScale)
   }
 
   const handleFilterCompleteChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setZoomed(false)
     setFilterCompleteTrial(!filterCompleteTrial)
   }
 
   const handleFilterPrunedChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setZoomed(false)
     setFilterPrunedTrial(!filterPrunedTrial)
   }
 
@@ -286,4 +297,49 @@ const plotHistory = (
     })
   }
   plotly.react(plotDomId, plotData, layout)
+}
+
+const renderEmptyPlot = (
+    setZoomed: (zoomed: boolean) => void,
+    mode: string
+) => {
+  const graphDiv = document.getElementById(plotDomId)
+  if (graphDiv === null) {
+    return
+  }
+  const layout: Partial<plotly.Layout> = {
+    margin: {
+      l: 50,
+      t: 0,
+      r: 50,
+      b: 0,
+    },
+    yaxis: {
+      title: "Objective Value",
+      type: "linear",
+    },
+    xaxis: {
+      title: "Trial",
+      type: "linear",
+    },
+    showlegend: true,
+    template: mode === "dark" ? plotlyDarkTemplate : {},
+  }
+  plotly.react(graphDiv, [], layout)
+  // @ts-ignore
+  graphDiv.once("plotly_relayout", (event) => {
+    if (
+        event["xaxis.range[0]"] ||
+        event["yaxis.range[0]"] ||
+        event["xaxis.range[1]"] ||
+        event["yaxis.range[1]"]
+    ) {
+      console.log("setZoomed true")
+      setZoomed(true)
+    }
+    if (event["xaxis.autorange"] || event["yaxis.autorange"]) {
+      console.log("setZoomed false")
+      setZoomed(false)
+    }
+  })
 }
