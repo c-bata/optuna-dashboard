@@ -230,7 +230,6 @@ const plotCoordinate = (
       line: {
         color: dimensions[0]["values"],
         // @ts-ignore
-        colorscale: "Blues",
         colorbar: {
           title: targets[0].toLabel(study.objective_names),
         },
