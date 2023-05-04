@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 from datetime import datetime
 from datetime import timedelta
 import functools
@@ -11,7 +13,7 @@ from typing import Any
 from typing import Optional
 from typing import Union
 
-from bottle import Bottle
+from bottle import Bottle, HTTPResponse
 from bottle import redirect
 from bottle import request
 from bottle import response
@@ -510,6 +512,20 @@ def create_app(
             if cached_path_exists(os.path.join(STATIC_DIR, gz_filename)):
                 filename = gz_filename
         return static_file(filename, root=STATIC_DIR)
+
+    @app.get("/csv/<study_id:int>")
+    def send_static(study_id: int) -> BottleViewReturn:
+        csvfile = io.StringIO()
+        csvwriter = csv.writer(csvfile)
+        trials = get_trials(storage, study_id)
+        for t in trials:
+            csvwriter.writerow(['Spam', 'Lovely Spam', 'Wonderful Spam'])
+        csvfile.seek(0)
+
+        headers = {}
+        headers["Content-Type"] = "text/csv"
+        headers["Content-Disposition"] = f"attachment; filename=study-{study_id}.csv"
+        return HTTPResponse(csvfile, **headers)
 
     register_artifact_route(app, storage, artifact_backend)
     return app
