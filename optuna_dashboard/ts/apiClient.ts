@@ -15,6 +15,7 @@ export const getMetaInfoAPI = (): Promise<APIMeta> => {
 interface TrialResponse {
   trial_id: number
   study_id: number
+  name?: string
   number: number
   state: TrialState
   values?: TrialValueNumber[]
@@ -36,6 +37,7 @@ const convertTrialResponse = (res: TrialResponse): Trial => {
   return {
     trial_id: res.trial_id,
     study_id: res.study_id,
+    name: res.name,
     number: res.number,
     state: res.state,
     values: res.values,

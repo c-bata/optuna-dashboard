@@ -14,6 +14,7 @@ from optuna.trial import FrozenTrial
 from . import _note as note
 from ._form_widget import get_form_widgets_json
 from ._named_objectives import get_objective_names
+from ._trial_name import get_trial_name
 from .artifact._backend import list_trial_artifacts
 
 
@@ -223,6 +224,10 @@ def serialize_frozen_trial(
 
     if trial.datetime_complete is not None:
         serialized["datetime_complete"] = trial.datetime_complete.isoformat()
+
+    trial_name = get_trial_name(trial_system_attrs)
+    if trial_name:
+        serialized["name"] = trial_name
 
     return serialized
 

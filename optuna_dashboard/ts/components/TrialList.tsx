@@ -251,7 +251,7 @@ const TrialListDetail: FC<{
           fontWeight: theme.typography.fontWeightBold,
         }}
       >
-        Trial {trial.number} (trial_id={trial.trial_id})
+        {trial.name !== undefined ? `${trial.number} ${trial.name}` : `Trial ${trial.number} (trial_id=${trial.trial_id})`}
       </Typography>
       <Box
         sx={{
@@ -771,7 +771,8 @@ export const TrialList: FC<{ studyDetail: StudyDetail | null }> = ({
                     alignItems: "flex-start",
                   }}
                 >
-                  <ListItemText primary={`Trial ${trial.number}`} />
+                  <ListItemText primary={
+                    trial.name !== undefined ? `${trial.number} ${trial.name}` : `Trial ${trial.number} (trial_id=${trial.trial_id})`} />
                   <Box>
                     <Chip
                       color={getChipColor(trial.state)}

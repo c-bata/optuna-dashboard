@@ -98,6 +98,7 @@ type Artifact = {
 
 type Trial = {
   trial_id: number
+  name?: string
   study_id: number
   number: number
   state: TrialState
