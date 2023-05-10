@@ -168,6 +168,7 @@ const MarkdownRenderer: FC<{ body: string }> = ({ body }) => (
     children={body}
     remarkPlugins={[remarkGfm, remarkMath]}
     rehypePlugins={[rehypeMathjax, rehypeRaw]}
+    className="react-markdown"
     components={{
       code: CodeBlock,
       img: (props) => <img {...props} style={{ maxWidth: "100%" }} />,
