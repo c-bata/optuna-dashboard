@@ -305,17 +305,6 @@ const TrialListDetail: FC<{
         objectiveNames={objectiveNames}
         formWidgets={formWidgets}
       />
-      <Box
-        sx={{
-          marginBottom: theme.spacing(2),
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        {info.map(([key, value]) =>
-          value !== null ? renderInfo(key, value) : null
-        )}
-      </Box>
       {artifactEnabled && <TrialArtifact trial={trial} />}
     </Box>
   )
