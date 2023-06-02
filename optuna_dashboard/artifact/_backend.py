@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import gzip
 import io
 import json
 import mimetypes
 import os.path
+import shutil
+import tempfile
 from typing import TYPE_CHECKING
 import uuid
 
@@ -33,6 +36,7 @@ if TYPE_CHECKING:
             "artifact_id": str,
             "filename": str,
             "mimetype": str,
+            "gzip": Optional[bool],
             "encoding": Optional[str],
         },
     )
@@ -67,13 +71,22 @@ def register_artifact_route(
         if artifact_dict is None:
             response.status = 404
             return b"Not Found"
-        headers = {"Content-Type": artifact_dict["mimetype"]}
-        encoding = artifact_dict.get("encoding")
-        if encoding:
-            headers["Content-Encodings"] = encoding
 
-        fp = artifact_backend.open(artifact_id)
-        return HTTPResponse(fp, headers=headers)
+        headers = {"Content-Type": artifact_dict["mimetype"]}
+        is_gzip_compressed = artifact_dict.get("gzip", False)
+        use_gzip = is_gzip_compressed and "gzip" in request.headers["Accept-Encoding"]
+        if use_gzip:
+            headers["Content-Encodings"] = "gzip"
+        elif artifact_dict.get("encoding"):
+            headers["Content-Encodings"] = artifact_dict.get("encoding")
+
+        if use_gzip or not is_gzip_compressed:
+            return HTTPResponse(artifact_backend.open(artifact_id), headers=headers)
+
+        with artifact_backend.open(artifact_id) as f:
+            body = f.read()
+        decompressed_body = gzip.decompress(body)
+        return HTTPResponse(decompressed_body, headers=headers)
 
     @app.post("/api/artifacts/<study_id:int>/<trial_id:int>")
     @json_api_view
@@ -89,13 +102,16 @@ def register_artifact_route(
         _, data = parse_data_uri(file)
         filename = request.json.get("filename", "")
         artifact_id = str(uuid.uuid4())
-        artifact_backend.write(artifact_id, io.BytesIO(data))
+
+        compressed_data = gzip.compress(data)
+        artifact_backend.write(artifact_id, io.BytesIO(compressed_data))
 
         mimetype, encoding = mimetypes.guess_type(filename)
         artifact = {
             "artifact_id": artifact_id,
             "filename": filename,
             "mimetype": mimetype or DEFAULT_MIME_TYPE,
+            "gzip": True,
             "encoding": encoding,
         }
         attr_key = _artifact_prefix(trial_id=trial_id) + artifact_id
@@ -128,6 +144,7 @@ def upload_artifact(
     *,
     mimetype: Optional[str] = None,
     encoding: Optional[str] = None,
+    compress_gzip: bool = True,
 ) -> str:
     """Upload an artifact (files), which is associated with the trial.
 
@@ -156,13 +173,25 @@ def upload_artifact(
         "artifact_id": artifact_id,
         "mimetype": mimetype or guess_mimetype or DEFAULT_MIME_TYPE,
         "encoding": encoding or guess_encoding,
+        "gzip": compress_gzip,
         "filename": filename,
     }
     attr_key = _artifact_prefix(trial_id=trial_id) + artifact_id
     storage.set_study_system_attr(study_id, attr_key, json.dumps(artifact))
 
-    with open(file_path, "rb") as f:
-        backend.write(artifact_id, f)
+    if not compress_gzip:
+        with open(file_path, "rb") as f_in:
+            backend.write(artifact_id, f_in)
+        return artifact_id
+
+    with tempfile.TemporaryFile(suffix=".gz") as f_gzip:
+        with open(file_path, "rb") as f_in:
+            gzip_writer = gzip.GzipFile(fileobj=f_gzip, mode="wb")
+            shutil.copyfileobj(f_in, gzip_writer)
+        f_gzip.flush()
+
+        f_gzip.seek(0)
+        backend.write(artifact_id, f_gzip)
     return artifact_id
 
 
