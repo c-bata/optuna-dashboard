@@ -24,6 +24,7 @@ import {
   artifactIsAvailable,
   reloadIntervalState,
   trialsUpdatingState,
+  studiesLoadingState,
 } from "./state"
 import { getDominatedTrials } from "./dominatedTrials"
 
@@ -48,6 +49,7 @@ export const actionCreator = () => {
     useRecoilState<StudyParamImportance>(paramImportanceState)
   const setUploading = useSetRecoilState<boolean>(isFileUploading)
   const setTrialsUpdating = useSetRecoilState(trialsUpdatingState)
+  const [studiesLoading, setStudiesLoading] = useRecoilState(studiesLoadingState)
   const setArtifactIsAvailable = useSetRecoilState<boolean>(artifactIsAvailable)
 
   const setStudyDetailState = (studyId: number, study: StudyDetail) => {
@@ -65,10 +67,24 @@ export const actionCreator = () => {
     newStudy.trials = newTrials
     setStudyDetailState(studyId, newStudy)
   }
+
   const setTrialUpdating = (trialId: number, updating: boolean) => {
     setTrialsUpdating((prev) => {
       const newVal = Object.assign({}, prev)
       newVal[trialId] = updating
+      return newVal
+    })
+  }
+
+  const isStudyLoading = (studyId: number): boolean => {
+    console.dir(studiesLoading)
+    return studiesLoading[studyId] || false
+  }
+
+  const setStudyLoading = (studyId: number, loading: boolean) => {
+    setStudiesLoading((prev) => {
+      const newVal = Object.assign({}, prev)
+      newVal[studyId] = loading
       return newVal
     })
   }
@@ -217,6 +233,14 @@ export const actionCreator = () => {
   }
 
   const updateStudyDetail = (studyId: number) => {
+    console.log("updateStudyDetail Fired")
+    if (isStudyLoading(studyId)) {
+      console.log("updateStudyDetail Ignored")
+      return
+    }
+
+    console.log("updateStudyDetail changed state true")
+    setStudyLoading(studyId, true)
     let nLocalFixedTrials = 0
     if (studyId in studyDetails) {
       const currentTrials = studyDetails[studyId].trials
@@ -228,6 +252,8 @@ export const actionCreator = () => {
     }
     getStudyDetailAPI(studyId, nLocalFixedTrials)
       .then((study) => {
+        setStudyLoading(studyId, false)
+      console.log("updateStudyDetail Success")
         const currentFixedTrials =
           studyId in studyDetails
             ? studyDetails[studyId].trials.slice(0, nLocalFixedTrials)
@@ -236,6 +262,7 @@ export const actionCreator = () => {
         setStudyDetailState(studyId, study)
       })
       .catch((err) => {
+        setStudyLoading(studyId, false)
         const reason = err.response?.data.reason
         if (reason !== undefined) {
           enqueueSnackbar(`Failed to fetch study (reason=${reason})`, {

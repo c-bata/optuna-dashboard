@@ -10,6 +10,13 @@ export const studyDetailsState = atom<StudyDetails>({
   default: {},
 })
 
+export const studiesLoadingState = atom<{
+  [studyId: string]: boolean
+}>({
+  key: "studiesLoading",
+  default: {},
+})
+
 export const trialsUpdatingState = atom<{
   [trialId: string]: boolean
 }>({

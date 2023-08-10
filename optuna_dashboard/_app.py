@@ -173,6 +173,8 @@ def create_app(
     @app.get("/api/studies/<study_id:int>")
     @json_api_view
     def get_study_detail(study_id: int) -> dict[str, Any]:
+        import time
+        time.sleep(20)
         try:
             after = int(request.params["after"])
             assert after >= 0
