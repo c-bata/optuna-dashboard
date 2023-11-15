@@ -10,14 +10,21 @@ import {
   TableSortLabel,
   Collapse,
   IconButton,
-  useTheme,
+  Menu,
+  MenuItem,
 } from "@mui/material"
 import { styled } from "@mui/system"
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown"
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp"
-import { Clear } from "@mui/icons-material"
+import CheckBoxOutlineBlankIcon from "@mui/icons-material/CheckBoxOutlineBlank"
+import CheckBoxIcon from "@mui/icons-material/CheckBox"
+import FilterListIcon from "@mui/icons-material/FilterList"
+import ListItemIcon from "@mui/material/ListItemIcon"
 
-type Order = "asc" | "desc"
+type Order = {
+  columnIdx: number
+  direction: "asc" | "desc"
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Value = any
@@ -30,13 +37,14 @@ interface DataGridColumn<T> {
   sortable?: boolean
   less?: (a: T, b: T, ascending: boolean) => number
   filterable?: boolean
+  filterChoices?: string[]
   toCellValue?: (rowIndex: number) => string | React.ReactNode
   padding?: "normal" | "checkbox" | "none"
 }
 
 interface RowFilter {
   columnIdx: number
-  value: Value
+  values: Value[]
 }
 
 function DataGrid<T>(props: {
@@ -51,8 +59,10 @@ function DataGrid<T>(props: {
 }): React.ReactElement {
   const { columns, rows, keyField, dense, collapseBody, defaultFilter } = props
   let { initialRowsPerPage, rowsPerPageOption } = props
-  const [order, setOrder] = React.useState<Order>("asc")
-  const [orderBy, setOrderBy] = React.useState<number>(0) // index of columns
+  const [order, setOrder] = React.useState<Order>({
+    columnIdx: 0,
+    direction: "asc",
+  })
   const [page, setPage] = React.useState(0)
   const [filters, setFilters] = React.useState<RowFilter[]>([])
 
@@ -81,28 +91,13 @@ function DataGrid<T>(props: {
   }
 
   // Filtering
-  const fieldAlreadyFiltered = (columnIdx: number): boolean =>
-    filters.some((f) => f.columnIdx === columnIdx)
-
-  const handleClickFilterCell = (columnIdx: number, value: Value) => {
-    if (fieldAlreadyFiltered(columnIdx)) {
-      return
-    }
-    const newFilters = [...filters, { columnIdx: columnIdx, value: value }]
-    setFilters(newFilters)
-  }
-
-  const clearFilter = (columnIdx: number): void => {
-    setFilters(filters.filter((f) => f.columnIdx !== columnIdx))
-  }
-
   const filteredRows = rows.filter((row, rowIdx) => {
     if (defaultFilter !== undefined && defaultFilter(row)) {
       return false
     }
     return filters.length === 0
       ? true
-      : filters.some((f) => {
+      : filters.every((f) => {
           if (columns.length <= f.columnIdx) {
             console.log(
               `columnIdx=${f.columnIdx} must be smaller than columns.length=${columns.length}`
@@ -110,21 +105,16 @@ function DataGrid<T>(props: {
             return true
           }
           const toCellValue = columns[f.columnIdx].toCellValue
-          if (toCellValue !== undefined) {
-            return toCellValue(rowIdx) === f.value
-          }
-          const field = columns[f.columnIdx].field
-          return row[field] === f.value
+          const value =
+            toCellValue !== undefined
+              ? toCellValue(rowIdx)
+              : row[columns[f.columnIdx].field]
+          return f.values.some((v) => v === value)
         })
   })
 
   // Sorting
-  const createSortHandler = (columnId: number) => {
-    const isAsc = orderBy === columnId && order === "asc"
-    setOrder(isAsc ? "desc" : "asc")
-    setOrderBy(columnId)
-  }
-  const sortedRows = stableSort<T>(filteredRows, order, orderBy, columns)
+  const sortedRows = stableSort<T>(filteredRows, order, columns)
   const currentPageRows =
     rowsPerPage > 0
       ? sortedRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
@@ -146,18 +136,35 @@ function DataGrid<T>(props: {
           <TableHead>
             <TableRow>
               {collapseBody ? <TableCell /> : null}
-              {columns.map((column, columnIdx) => (
-                <DataGridHeaderColumn<T>
-                  key={column.label}
-                  createSortHandler={createSortHandler}
-                  column={column}
-                  columnIdx={columnIdx}
-                  orderBy={orderBy}
-                  order={order}
-                  clearFilter={clearFilter}
-                  filtered={fieldAlreadyFiltered(columnIdx)}
-                />
-              ))}
+              {columns.map((column, columnIdx) => {
+                return (
+                  <DataGridHeaderColumn<T>
+                    key={columnIdx}
+                    column={column}
+                    columnIdx={columnIdx}
+                    order={order}
+                    filter={
+                      filters.find((f) => f.columnIdx === columnIdx) || null
+                    }
+                    onOrderByChange={() => {
+                      const isAsc =
+                        order.columnIdx === columnIdx &&
+                        order.direction === "asc"
+                      setOrder({
+                        columnIdx: columnIdx,
+                        direction: isAsc ? "desc" : "asc",
+                      })
+                    }}
+                    onFilterChange={(filter: RowFilter) => {
+                      const newFilters = filters.filter(
+                        (f) => f.columnIdx !== columnIdx
+                      )
+                      newFilters.push(filter)
+                      setFilters(newFilters)
+                    }}
+                  />
+                )
+              })}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -169,7 +176,6 @@ function DataGrid<T>(props: {
                 keyField={keyField}
                 collapseBody={collapseBody}
                 key={`${row[keyField]}`}
-                handleClickFilterCell={handleClickFilterCell}
               />
             ))}
             {emptyRows > 0 && (
@@ -196,24 +202,25 @@ function DataGrid<T>(props: {
 function DataGridHeaderColumn<T>(props: {
   column: DataGridColumn<T>
   columnIdx: number
-  orderBy: number
   order: Order
+  onOrderByChange: () => void
+  filter: RowFilter | null
+  onFilterChange: (filter: RowFilter) => void
   dense?: boolean
-  createSortHandler: (columnIdx: number) => void
-  clearFilter: (columnIdx: number) => void
-  filtered: boolean
 }) {
   const {
     column,
     columnIdx,
-    dense,
-    orderBy,
     order,
-    createSortHandler,
-    clearFilter,
-    filtered,
+    onOrderByChange,
+    filter,
+    onFilterChange,
+    dense,
   } = props
+  const [filterMenuAnchorEl, setFilterMenuAnchorEl] =
+    React.useState<null | HTMLElement>(null)
 
+  const filterChoices = column.filterChoices
   const HiddenSpan = styled("span")({
     border: 0,
     clip: "rect(0 0 0 0)",
@@ -228,41 +235,78 @@ function DataGridHeaderColumn<T>(props: {
   const TableHeaderCellSpan = styled("span")({
     display: "inline-flex",
   })
+
   return (
     <TableCell
       padding={column.padding || "normal"}
-      sortDirection={orderBy === column.field ? order : false}
+      sortDirection={order.columnIdx === column.field ? order.direction : false}
     >
       <TableHeaderCellSpan>
         {column.sortable ? (
           <TableSortLabel
-            active={orderBy === columnIdx}
-            direction={orderBy === columnIdx ? order : "asc"}
+            active={order.columnIdx === columnIdx}
+            direction={order.columnIdx === columnIdx ? order.direction : "asc"}
             onClick={() => {
-              createSortHandler(columnIdx)
+              onOrderByChange()
             }}
           >
             {column.label}
-            {orderBy === column.field ? (
+            {order.columnIdx === column.field ? (
               <HiddenSpan>
-                {order === "desc" ? "sorted descending" : "sorted ascending"}
+                {order.direction === "desc"
+                  ? "sorted descending"
+                  : "sorted ascending"}
               </HiddenSpan>
             ) : null}
           </TableSortLabel>
         ) : (
           column.label
         )}
-        {column.filterable ? (
-          <IconButton
-            size={dense ? "small" : "medium"}
-            style={filtered ? {} : { visibility: "hidden" }}
-            color="inherit"
-            onClick={() => {
-              clearFilter(columnIdx)
-            }}
-          >
-            <Clear />
-          </IconButton>
+        {filterChoices !== undefined ? (
+          <>
+            <IconButton
+              size={dense ? "small" : "medium"}
+              onClick={(e) => {
+                setFilterMenuAnchorEl(e.currentTarget)
+              }}
+            >
+              <FilterListIcon fontSize="small" />
+            </IconButton>
+            <Menu
+              anchorEl={filterMenuAnchorEl}
+              open={filterMenuAnchorEl !== null}
+              onClose={() => {
+                setFilterMenuAnchorEl(null)
+              }}
+            >
+              {filterChoices.map((choice, i) => (
+                <MenuItem
+                  key={choice}
+                  onClick={() => {
+                    const values =
+                      filter === null
+                        ? filterChoices.filter((v) => v !== choice)
+                        : filter.values.some((v) => v === choice)
+                        ? filter.values.filter((v) => v !== choice)
+                        : [...filter.values, choice]
+                    onFilterChange({
+                      columnIdx: columnIdx,
+                      values: values,
+                    })
+                  }}
+                >
+                  <ListItemIcon>
+                    {!filter || !filter.values.every((v) => v !== choice) ? (
+                      <CheckBoxIcon color="primary" />
+                    ) : (
+                      <CheckBoxOutlineBlankIcon color="primary" />
+                    )}
+                  </ListItemIcon>
+                  {choice}
+                </MenuItem>
+              ))}
+            </Menu>
+          </>
         ) : null}
       </TableHeaderCellSpan>
     </TableCell>
@@ -275,24 +319,10 @@ function DataGridRow<T>(props: {
   row: T
   keyField: keyof T
   collapseBody?: (rowIndex: number) => React.ReactNode
-  handleClickFilterCell: (columnIdx: number, value: Value) => void
 }) {
-  const {
-    columns,
-    rowIndex,
-    row,
-    keyField,
-    collapseBody,
-    handleClickFilterCell,
-  } = props
+  const { columns, rowIndex, row, keyField, collapseBody } = props
   const [open, setOpen] = React.useState(false)
-  const theme = useTheme()
 
-  const FilterableDiv = styled("div")({
-    color: theme.palette.primary.main,
-    textDecoration: "underline",
-    cursor: "pointer",
-  })
   return (
     <React.Fragment>
       <TableRow hover tabIndex={-1}>
@@ -313,21 +343,7 @@ function DataGridRow<T>(props: {
             : // TODO(c-bata): Avoid this implicit type conversion.
               (row[column.field] as number | string | null | undefined)
 
-          return column.filterable ? (
-            <TableCell
-              key={`${row[keyField]}:${column.field.toString()}:${columnIndex}`}
-              padding={column.padding || "normal"}
-              onClick={() => {
-                const value =
-                  column.toCellValue !== undefined
-                    ? column.toCellValue(rowIndex)
-                    : row[column.field]
-                handleClickFilterCell(columnIndex, value)
-              }}
-            >
-              <FilterableDiv>{cellItem}</FilterableDiv>
-            </TableCell>
-          ) : (
+          return (
             <TableCell
               key={`${row[keyField]}:${column.field.toString()}:${columnIndex}`}
               padding={column.padding || "normal"}
@@ -352,12 +368,11 @@ function DataGridRow<T>(props: {
 
 function getComparator<T>(
   order: Order,
-  columns: DataGridColumn<T>[],
-  orderBy: number
+  columns: DataGridColumn<T>[]
 ): (a: T, b: T) => number {
-  return order === "desc"
-    ? (a, b) => descendingComparator<T>(a, b, columns, orderBy)
-    : (a, b) => -descendingComparator<T>(a, b, columns, orderBy)
+  return order.direction === "desc"
+    ? (a, b) => descendingComparator<T>(a, b, columns, order.columnIdx)
+    : (a, b) => -descendingComparator<T>(a, b, columns, order.columnIdx)
 }
 
 function descendingComparator<T>(
@@ -376,19 +391,14 @@ function descendingComparator<T>(
   return 0
 }
 
-function stableSort<T>(
-  array: T[],
-  order: Order,
-  orderBy: number,
-  columns: DataGridColumn<T>[]
-) {
+function stableSort<T>(array: T[], order: Order, columns: DataGridColumn<T>[]) {
   // TODO(c-bata): Refactor here by implementing as the same comparator interface.
-  const less = columns[orderBy].less
-  const comparator = getComparator(order, columns, orderBy)
+  const less = columns[order.columnIdx].less
+  const comparator = getComparator(order, columns)
   const stabilizedThis = array.map((el, index) => [el, index] as [T, number])
   stabilizedThis.sort((a, b) => {
     if (less) {
-      const ascending = order == "asc"
+      const ascending = order.direction == "asc"
       const result = ascending
         ? -less(a[0], b[0], ascending)
         : less(a[0], b[0], ascending)
