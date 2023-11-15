@@ -160,6 +160,199 @@ export const AppDrawer: FC<{
     setOpen(false)
   }
 
+  const drawerMemo = React.useMemo(() => (
+    <Drawer variant="permanent" open={open}>
+      <DrawerHeader>
+        <IconButton onClick={handleDrawerClose}>
+          {theme.direction === "rtl" ? (
+            <ChevronRightIcon />
+          ) : (
+            <ChevronLeftIcon />
+          )}
+        </IconButton>
+      </DrawerHeader>
+      <Divider />
+      {studyId !== undefined && page && (
+        <List>
+          <ListItem key="Top" disablePadding sx={styleListItem}>
+            <ListItemButton
+              component={Link}
+              to={`${URL_PREFIX}/studies/${studyId}`}
+              sx={styleListItemButton}
+              selected={page === "top"}
+            >
+              <ListItemIcon sx={styleListItemIcon}>
+                {isPreferential ? <ThumbUpAltIcon /> : <AutoGraphIcon />}
+              </ListItemIcon>
+              <ListItemText
+                primary={isPreferential ? "Feedback Preference" : "History"}
+                sx={styleListItemText}
+              />
+            </ListItemButton>
+          </ListItem>
+          {isPreferential && (
+            <ListItem
+              key="PreferenceHistory"
+              disablePadding
+              sx={styleListItem}
+            >
+              <ListItemButton
+                component={Link}
+                to={`${URL_PREFIX}/studies/${studyId}/preference-history`}
+                sx={styleListItemButton}
+                selected={page === "preferenceHistory"}
+              >
+                <ListItemIcon sx={styleListItemIcon}>
+                  <HistoryIcon />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Preferences (History)"
+                  sx={styleListItemText}
+                />
+              </ListItemButton>
+            </ListItem>
+          )}
+          <ListItem key="Analytics" disablePadding sx={styleListItem}>
+            <ListItemButton
+              component={Link}
+              to={`${URL_PREFIX}/studies/${studyId}/analytics`}
+              sx={styleListItemButton}
+              selected={page === "analytics"}
+            >
+              <ListItemIcon sx={styleListItemIcon}>
+                <QueryStatsIcon />
+              </ListItemIcon>
+              <ListItemText primary="Analytics" sx={styleListItemText} />
+            </ListItemButton>
+          </ListItem>
+          {isPreferential && (
+            <ListItem key="PreferenceGraph" disablePadding sx={styleListItem}>
+              <ListItemButton
+                component={Link}
+                to={`${URL_PREFIX}/studies/${studyId}/graph`}
+                sx={styleListItemButton}
+                selected={page === "graph"}
+              >
+                <ListItemIcon sx={styleListItemIcon}>
+                  <LanIcon />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Preferences (Graph)"
+                  sx={styleListItemText}
+                />
+              </ListItemButton>
+            </ListItem>
+          )}
+          <ListItem key="TableList" disablePadding sx={styleListItem}>
+            <ListItemButton
+              component={Link}
+              to={`${URL_PREFIX}/studies/${studyId}/trials`}
+              sx={styleListItemButton}
+              selected={page === "trialList"}
+            >
+              <ListItemIcon sx={styleListItemIcon}>
+                <ViewListIcon />
+              </ListItemIcon>
+              <ListItemText primary="Trials (List)" sx={styleListItemText} />
+            </ListItemButton>
+          </ListItem>
+          <ListItem key="TrialTable" disablePadding sx={styleListItem}>
+            <ListItemButton
+              component={Link}
+              to={`${URL_PREFIX}/studies/${studyId}/trialTable`}
+              sx={styleListItemButton}
+              selected={page === "trialTable"}
+            >
+              <ListItemIcon sx={styleListItemIcon}>
+                <TableViewIcon />
+              </ListItemIcon>
+              <ListItemText primary="Trials (Table)" sx={styleListItemText} />
+            </ListItemButton>
+          </ListItem>
+          <ListItem key="Note" disablePadding sx={styleListItem}>
+            <ListItemButton
+              component={Link}
+              to={`${URL_PREFIX}/studies/${studyId}/note`}
+              sx={styleListItemButton}
+              selected={page === "note"}
+            >
+              <ListItemIcon sx={styleListItemIcon}>
+                <RateReviewIcon />
+              </ListItemIcon>
+              <ListItemText primary="Note" sx={styleListItemText} />
+            </ListItemButton>
+          </ListItem>
+        </List>
+      )}
+      <Box sx={{ flexGrow: 1 }} />
+      <Divider />
+      <List>
+        {studyId !== undefined && (
+          <ListItem key="LiveUpdate" disablePadding sx={styleListItem}>
+            <ListItemButton
+              sx={styleListItemButton}
+              onClick={() => {
+                action.saveReloadInterval(reloadInterval === -1 ? 10 : -1)
+              }}
+            >
+              <ListItemIcon sx={styleListItemIcon}>
+                {reloadInterval === -1 ? <SyncDisabledIcon /> : <SyncIcon />}
+              </ListItemIcon>
+              <ListItemText primary="Live Update" sx={styleListItemText} />
+              <Switch
+                edge="end"
+                checked={reloadInterval !== -1}
+                sx={styleSwitch}
+                inputProps={{
+                  "aria-labelledby": "switch-list-label-live-update",
+                }}
+              />
+            </ListItemButton>
+          </ListItem>
+        )}
+        <ListItem key="DarkMode" disablePadding sx={styleListItem}>
+          <ListItemButton
+            sx={styleListItemButton}
+            onClick={() => {
+              toggleColorMode()
+            }}
+          >
+            <ListItemIcon sx={styleListItemIcon}>
+              {theme.palette.mode === "dark" ? (
+                <Brightness4Icon />
+              ) : (
+                <Brightness7Icon />
+              )}
+            </ListItemIcon>
+            <ListItemText primary="Dark Mode" sx={styleListItemText} />
+            <Switch
+              edge="end"
+              checked={theme.palette.mode === "dark"}
+              sx={styleSwitch}
+              inputProps={{
+                "aria-labelledby": "switch-list-label-dark-mode",
+              }}
+            />
+          </ListItemButton>
+        </ListItem>
+        <Divider />
+        <ListItem key="Feedback" disablePadding sx={styleListItem}>
+          <ListItemButton
+            target="_blank"
+            href="https://github.com/optuna/optuna-dashboard/discussions/new/choose"
+            sx={styleListItemButton}
+          >
+            <ListItemIcon sx={styleListItemIcon}>
+              <GitHubIcon />
+            </ListItemIcon>
+            <ListItemText primary="Send Feedback" sx={styleListItemText} />
+            <OpenInNewIcon sx={styleSwitch} />
+          </ListItemButton>
+        </ListItem>
+      </List>
+    </Drawer>
+  ), [open, theme, isPreferential, reloadInterval])
+
   return (
     <Box sx={{ display: "flex", width: "100%" }}>
       <AppBar position="fixed" open={open}>
@@ -179,196 +372,7 @@ export const AppDrawer: FC<{
           {toolbar}
         </Toolbar>
       </AppBar>
-      <Drawer variant="permanent" open={open}>
-        <DrawerHeader>
-          <IconButton onClick={handleDrawerClose}>
-            {theme.direction === "rtl" ? (
-              <ChevronRightIcon />
-            ) : (
-              <ChevronLeftIcon />
-            )}
-          </IconButton>
-        </DrawerHeader>
-        <Divider />
-        {studyId !== undefined && page && (
-          <List>
-            <ListItem key="Top" disablePadding sx={styleListItem}>
-              <ListItemButton
-                component={Link}
-                to={`${URL_PREFIX}/studies/${studyId}`}
-                sx={styleListItemButton}
-                selected={page === "top"}
-              >
-                <ListItemIcon sx={styleListItemIcon}>
-                  {isPreferential ? <ThumbUpAltIcon /> : <AutoGraphIcon />}
-                </ListItemIcon>
-                <ListItemText
-                  primary={isPreferential ? "Feedback Preference" : "History"}
-                  sx={styleListItemText}
-                />
-              </ListItemButton>
-            </ListItem>
-            {isPreferential && (
-              <ListItem
-                key="PreferenceHistory"
-                disablePadding
-                sx={styleListItem}
-              >
-                <ListItemButton
-                  component={Link}
-                  to={`${URL_PREFIX}/studies/${studyId}/preference-history`}
-                  sx={styleListItemButton}
-                  selected={page === "preferenceHistory"}
-                >
-                  <ListItemIcon sx={styleListItemIcon}>
-                    <HistoryIcon />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary="Preferences (History)"
-                    sx={styleListItemText}
-                  />
-                </ListItemButton>
-              </ListItem>
-            )}
-            <ListItem key="Analytics" disablePadding sx={styleListItem}>
-              <ListItemButton
-                component={Link}
-                to={`${URL_PREFIX}/studies/${studyId}/analytics`}
-                sx={styleListItemButton}
-                selected={page === "analytics"}
-              >
-                <ListItemIcon sx={styleListItemIcon}>
-                  <QueryStatsIcon />
-                </ListItemIcon>
-                <ListItemText primary="Analytics" sx={styleListItemText} />
-              </ListItemButton>
-            </ListItem>
-            {isPreferential && (
-              <ListItem key="PreferenceGraph" disablePadding sx={styleListItem}>
-                <ListItemButton
-                  component={Link}
-                  to={`${URL_PREFIX}/studies/${studyId}/graph`}
-                  sx={styleListItemButton}
-                  selected={page === "graph"}
-                >
-                  <ListItemIcon sx={styleListItemIcon}>
-                    <LanIcon />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary="Preferences (Graph)"
-                    sx={styleListItemText}
-                  />
-                </ListItemButton>
-              </ListItem>
-            )}
-            <ListItem key="TableList" disablePadding sx={styleListItem}>
-              <ListItemButton
-                component={Link}
-                to={`${URL_PREFIX}/studies/${studyId}/trials`}
-                sx={styleListItemButton}
-                selected={page === "trialList"}
-              >
-                <ListItemIcon sx={styleListItemIcon}>
-                  <ViewListIcon />
-                </ListItemIcon>
-                <ListItemText primary="Trials (List)" sx={styleListItemText} />
-              </ListItemButton>
-            </ListItem>
-            <ListItem key="TrialTable" disablePadding sx={styleListItem}>
-              <ListItemButton
-                component={Link}
-                to={`${URL_PREFIX}/studies/${studyId}/trialTable`}
-                sx={styleListItemButton}
-                selected={page === "trialTable"}
-              >
-                <ListItemIcon sx={styleListItemIcon}>
-                  <TableViewIcon />
-                </ListItemIcon>
-                <ListItemText primary="Trials (Table)" sx={styleListItemText} />
-              </ListItemButton>
-            </ListItem>
-            <ListItem key="Note" disablePadding sx={styleListItem}>
-              <ListItemButton
-                component={Link}
-                to={`${URL_PREFIX}/studies/${studyId}/note`}
-                sx={styleListItemButton}
-                selected={page === "note"}
-              >
-                <ListItemIcon sx={styleListItemIcon}>
-                  <RateReviewIcon />
-                </ListItemIcon>
-                <ListItemText primary="Note" sx={styleListItemText} />
-              </ListItemButton>
-            </ListItem>
-          </List>
-        )}
-        <Box sx={{ flexGrow: 1 }} />
-        <Divider />
-        <List>
-          {studyId !== undefined && (
-            <ListItem key="LiveUpdate" disablePadding sx={styleListItem}>
-              <ListItemButton
-                sx={styleListItemButton}
-                onClick={() => {
-                  action.saveReloadInterval(reloadInterval === -1 ? 10 : -1)
-                }}
-              >
-                <ListItemIcon sx={styleListItemIcon}>
-                  {reloadInterval === -1 ? <SyncDisabledIcon /> : <SyncIcon />}
-                </ListItemIcon>
-                <ListItemText primary="Live Update" sx={styleListItemText} />
-                <Switch
-                  edge="end"
-                  checked={reloadInterval !== -1}
-                  sx={styleSwitch}
-                  inputProps={{
-                    "aria-labelledby": "switch-list-label-live-update",
-                  }}
-                />
-              </ListItemButton>
-            </ListItem>
-          )}
-          <ListItem key="DarkMode" disablePadding sx={styleListItem}>
-            <ListItemButton
-              sx={styleListItemButton}
-              onClick={() => {
-                toggleColorMode()
-              }}
-            >
-              <ListItemIcon sx={styleListItemIcon}>
-                {theme.palette.mode === "dark" ? (
-                  <Brightness4Icon />
-                ) : (
-                  <Brightness7Icon />
-                )}
-              </ListItemIcon>
-              <ListItemText primary="Dark Mode" sx={styleListItemText} />
-              <Switch
-                edge="end"
-                checked={theme.palette.mode === "dark"}
-                sx={styleSwitch}
-                inputProps={{
-                  "aria-labelledby": "switch-list-label-dark-mode",
-                }}
-              />
-            </ListItemButton>
-          </ListItem>
-          <Divider />
-          <ListItem key="Feedback" disablePadding sx={styleListItem}>
-            <ListItemButton
-              target="_blank"
-              href="https://github.com/optuna/optuna-dashboard/discussions/new/choose"
-              sx={styleListItemButton}
-            >
-              <ListItemIcon sx={styleListItemIcon}>
-                <GitHubIcon />
-              </ListItemIcon>
-              <ListItemText primary="Send Feedback" sx={styleListItemText} />
-              <OpenInNewIcon sx={styleSwitch} />
-            </ListItemButton>
-          </ListItem>
-        </List>
-      </Drawer>
+      {drawerMemo}
       <Box component="main" sx={{ flexGrow: 1 }}>
         <DrawerHeader />
         {children || null}
