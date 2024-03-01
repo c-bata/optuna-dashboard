@@ -30,20 +30,18 @@ export function activate(context: vscode.ExtensionContext) {
       const appPath = panel.webview.asWebviewUri(indexJsUri)
 
       panel.webview.html = getWebviewContent(appPath)
-      panel.webview.onDidReceiveMessage(
-        async (message: any) => {
-          switch (message.type) {
-            case 'webviewDidLoad':
-              console.log("[host] Receive a webviewDidLoad event.")
-              const storageContentBase64 = await readFileAsBase64(fileUri)
-              panel.webview.postMessage({
-                type: "optunaStorage",
-                content: storageContentBase64,
-              })
-              break
-          }
+      panel.webview.onDidReceiveMessage(async (message: any) => {
+        switch (message.type) {
+          case "webviewDidLoad":
+            console.log("[host] Receive a webviewDidLoad event.")
+            const storageContentBase64 = await readFileAsBase64(fileUri)
+            panel.webview.postMessage({
+              type: "optunaStorage",
+              content: storageContentBase64,
+            })
+            break
         }
-      );
+      })
     }
   )
 
