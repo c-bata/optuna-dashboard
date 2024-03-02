@@ -4,8 +4,7 @@ import "./index.css"
 import { App } from "./components/App"
 import { RecoilRoot, useSetRecoilState } from "recoil"
 import { studiesState } from "./state"
-import { loadSQLite3Storage } from "./sqlite3"
-import { loadJournalStorage } from "@optuna/storage-loader"
+import { loadFileStorage } from "./storage"
 
 export const AppWrapper: FC = () => {
   const setStudies = useSetRecoilState<Study[]>(studiesState)
@@ -22,9 +21,6 @@ export const AppWrapper: FC = () => {
       let binaryString: string
       let len: number
       let bytes: Uint8Array
-      let arrayBuffer: ArrayBuffer
-      let header: Uint8Array
-      let headerString: string
 
       switch (message.type) {
         case "optunaStorage":
@@ -35,14 +31,7 @@ export const AppWrapper: FC = () => {
           for (let i = 0; i < len; i++) {
             bytes[i] = binaryString.charCodeAt(i)
           }
-          arrayBuffer = bytes.buffer
-          header = new Uint8Array(arrayBuffer, 0, 16)
-          headerString = new TextDecoder().decode(header)
-          if (headerString === "SQLite format 3\u0000") {
-            loadSQLite3Storage(arrayBuffer, onceSetStudies)
-          } else {
-            loadJournalStorage(arrayBuffer, onceSetStudies)
-          }
+          loadFileStorage(bytes.buffer, onceSetStudies)
           break
       }
     })

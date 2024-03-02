@@ -6,8 +6,7 @@ import React, {
   useRef,
   useState,
 } from "react"
-import { loadSQLite3Storage } from "../sqlite3"
-import { loadJournalStorage } from "@optuna/storage-loader"
+import { loadFileStorage } from "../storage"
 import { useSetRecoilState } from "recoil"
 import { studiesState } from "../state"
 import {
@@ -31,13 +30,7 @@ export const StorageLoader: FC = () => {
     r.addEventListener("load", () => {
       const arrayBuffer = r.result as ArrayBuffer | null
       if (arrayBuffer !== null) {
-        const header = new Uint8Array(arrayBuffer, 0, 16)
-        const headerString = new TextDecoder().decode(header)
-        if (headerString === "SQLite format 3\u0000") {
-          loadSQLite3Storage(arrayBuffer, setStudies)
-        } else {
-          loadJournalStorage(arrayBuffer, setStudies)
-        }
+        loadFileStorage(arrayBuffer, setStudies)
       }
     })
     r.readAsArrayBuffer(file)
