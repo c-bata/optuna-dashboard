@@ -1,4 +1,5 @@
 import * as vscode from "vscode"
+import { Database } from "sqlite3"
 
 export function activate(context: vscode.ExtensionContext) {
   console.log(
@@ -48,6 +49,9 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 async function readFileAsBase64(uri: vscode.Uri): Promise<string> {
+  console.log("Init database")
+  const db = new Database(':memory:');
+  console.log("Success to init database")
   const uint8Array = await vscode.workspace.fs.readFile(uri)
   const base64 = uint8ArrayToBase64(uint8Array)
   return base64
