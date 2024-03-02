@@ -1,4 +1,4 @@
-import React, { FC, useContext, useEffect, useMemo, useState } from "react"
+import React, { FC, useContext, useEffect, useState } from "react"
 import {
   AppBar,
   Typography,

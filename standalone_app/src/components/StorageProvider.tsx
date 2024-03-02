@@ -7,7 +7,7 @@ export const StorageContext = createContext<{
   setStorage: (storage: OptunaStorage) => void
 }>({
   storage: null,
-  setStorage: (_: OptunaStorage) => {},
+  setStorage: () => {},
 })
 
 export const getStorage = (arrayBuffer: ArrayBuffer): OptunaStorage => {
