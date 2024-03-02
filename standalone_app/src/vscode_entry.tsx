@@ -2,17 +2,15 @@ import React, { FC, useEffect } from "react"
 import ReactDOM from "react-dom/client"
 import "./index.css"
 import { App } from "./components/App"
-import { RecoilRoot, useSetRecoilState, SetterOrUpdater } from "recoil"
+import { RecoilRoot, useSetRecoilState } from "recoil"
 import { studiesState } from "./state"
 import { loadSQLite3Storage } from "./sqlite3"
-import { loadJournalStorage } from "./journalStorage"
+import { loadJournalStorage } from "@optuna/storage-loader"
 
 export const AppWrapper: FC = () => {
   const setStudies = useSetRecoilState<Study[]>(studiesState)
 
-  const onceSetStudies: SetterOrUpdater<Study[]> = (
-    setter: (currVal: Study[]) => Study[]
-  ): void => {
+  const onceSetStudies = (setter: (prev: Study[]) => Study[]): void => {
     const studies = setter([])
     setStudies(studies)
   }

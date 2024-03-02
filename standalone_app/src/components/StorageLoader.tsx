@@ -7,7 +7,7 @@ import React, {
   useState,
 } from "react"
 import { loadSQLite3Storage } from "../sqlite3"
-import { loadJournalStorage } from "../journalStorage"
+import { loadJournalStorage } from "@optuna/storage-loader"
 import { useSetRecoilState } from "recoil"
 import { studiesState } from "../state"
 import {

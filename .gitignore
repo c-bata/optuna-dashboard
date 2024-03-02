@@ -11,6 +11,8 @@ optuna_dashboard/public/
 # JS
 node_modules/
 standalone_app/public/
+tslib/entity/pkg/
+tslib/storage-loader/pkg/
 
 # VSCode
 vscode/assets/

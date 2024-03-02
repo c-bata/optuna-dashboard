@@ -1,6 +1,5 @@
 // @ts-ignore
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm"
-import { SetterOrUpdater } from "recoil"
 
 type SQLite3DB = {
   exec(options: {
@@ -12,7 +11,7 @@ type SQLite3DB = {
 
 export const loadSQLite3Storage = (
   arrayBuffer: ArrayBuffer,
-  setter: SetterOrUpdater<Study[]>
+  setter: (setter: (prev: Study[]) => Study[]) => void
 ): void => {
   sqlite3InitModule({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

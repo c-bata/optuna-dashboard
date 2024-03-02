@@ -9,10 +9,16 @@ DASHBOARD_TS_OUT = optuna_dashboard/public/bundle.js optuna_dashboard/public/fav
 RUSTLIB_OUT = rustlib/pkg/optuna_wasm.js rustlib/pkg/optuna_wasm_bg.wasm rustlib/pkg/package.json
 STANDALONE_OUT = standalone_app/public/bundle.js vscode/assets/bundle.js
 
+tslib/entity/pkg/index.js: tslib/entity/src/*.ts
+	cd tslib/entity && npm install && npm run build
+
+tslib/storage-loader/pkg/index.js: tslib/storage-loader/src/*.ts
+	cd tslib/storage-loader && npm install && npm run build
+
 $(RUSTLIB_OUT): rustlib/src/*.rs rustlib/Cargo.toml
 	cd rustlib && wasm-pack build --target web
 
-$(STANDALONE_OUT): $(RUSTLIB_OUT)
+$(STANDALONE_OUT): $(RUSTLIB_OUT) tslib/entity/pkg/index.js tslib/storage-loader/pkg/index.js
 	cd standalone_app && npm install && npm run build:$(MODE)
 
 $(DASHBOARD_TS_OUT): $(DASHBOARD_TS_IN)
