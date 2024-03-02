@@ -23,7 +23,7 @@ import { Link } from "react-router-dom"
 import { DebouncedInputTextField } from "./Debounce"
 import { Search } from "@mui/icons-material"
 import { StorageLoader } from "./StorageLoader"
-import { StorageContext } from "../storage"
+import { StorageContext } from "./StorageProvider"
 
 export const StudyList: FC<{
   toggleColorMode: () => void

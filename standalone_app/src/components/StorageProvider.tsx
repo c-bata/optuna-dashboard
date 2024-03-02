@@ -1,6 +1,6 @@
-import { createContext } from "react"
-import { SQLite3Storage } from "./sqlite3"
-import { JournalFileStorage } from "./journalStorage"
+import React, { FC, createContext, useState } from "react"
+import { SQLite3Storage } from "../sqlite3"
+import { JournalFileStorage } from "../journalStorage"
 
 export const StorageContext = createContext<{
   storage: OptunaStorage | null
@@ -18,4 +18,15 @@ export const getStorage = (arrayBuffer: ArrayBuffer): OptunaStorage => {
   } else {
     return new JournalFileStorage(arrayBuffer)
   }
+}
+
+export const StorageProvider: FC<{
+  children: React.ReactNode
+}> = ({ children }) => {
+  const [storage, setStorage] = useState<OptunaStorage | null>(null)
+  return (
+    <StorageContext.Provider value={{ storage, setStorage }}>
+      {children}
+    </StorageContext.Provider>
+  )
 }

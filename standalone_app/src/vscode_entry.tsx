@@ -1,12 +1,15 @@
-import React, { FC, useEffect, useState } from "react"
+import React, { FC, useEffect, useContext } from "react"
 import ReactDOM from "react-dom/client"
 import "./index.css"
 import { App } from "./components/App"
-import { RecoilRoot } from "recoil"
-import { StorageContext, getStorage } from "./storage"
+import {
+  StorageProvider,
+  getStorage,
+  StorageContext,
+} from "./components/StorageProvider"
 
 export const AppWrapper: FC = () => {
-  const [storage, setStorage] = useState<OptunaStorage | null>(null)
+  const { setStorage } = useContext(StorageContext)
 
   useEffect(() => {
     window.addEventListener("message", (event) => {
@@ -32,17 +35,13 @@ export const AppWrapper: FC = () => {
       }
     })
   }, [])
-  return (
-    <StorageContext.Provider value={{ storage, setStorage }}>
-      <App />
-    </StorageContext.Provider>
-  )
+  return <App />
 }
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <RecoilRoot>
+    <StorageProvider>
       <AppWrapper />
-    </RecoilRoot>
+    </StorageProvider>
   </React.StrictMode>
 )

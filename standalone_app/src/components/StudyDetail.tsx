@@ -19,7 +19,7 @@ import { TrialTable } from "./TrialTable"
 import { PlotHistory } from "./PlotHistory"
 import { PlotImportance } from "./PlotImportance"
 import { PlotIntermediateValues } from "./PlotIntermediateValues"
-import { StorageContext } from "../storage"
+import { StorageContext } from "./StorageProvider"
 
 export const StudyDetail: FC<{
   toggleColorMode: () => void
@@ -32,7 +32,6 @@ export const StudyDetail: FC<{
   const [study, setStudy] = useState<Study | null>(null)
   useEffect(() => {
     const fetchStudy = async () => {
-      console.log("fetchStudy: " + idx)
       if (storage === null) {
         return
       }
@@ -43,7 +42,7 @@ export const StudyDetail: FC<{
   }, [storage])
 
   return (
-    <div>
+    <>
       <AppBar position="static">
         <Container
           sx={{
@@ -140,6 +139,6 @@ export const StudyDetail: FC<{
           </Card>
         </>
       </Container>
-    </div>
+    </>
   )
 }

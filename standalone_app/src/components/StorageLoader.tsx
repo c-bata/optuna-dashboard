@@ -7,7 +7,7 @@ import React, {
   useState,
   useContext,
 } from "react"
-import { StorageContext, getStorage } from "../storage"
+import { StorageContext, getStorage } from "./StorageProvider"
 import {
   Card,
   CardActionArea,
