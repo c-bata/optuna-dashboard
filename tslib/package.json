@@ -10,25 +10,22 @@
     "url": "https://github.com/optuna/optuna-dashboard.git"
   },
   "scripts": {
-    "watch": "NODE_ENV=development TYPESCRIPT_LOADER=esbuild-loader webpack --watch",
-    "build:dev": "NODE_ENV=development TYPESCRIPT_LOADER=esbuild-loader webpack && tsc --emitDeclarationOnly",
+    "watch": "NODE_ENV=development webpack --watch",
+    "build:dev": "NODE_ENV=development  webpack && tsc --emitDeclarationOnly",
     "build:prd": "NODE_ENV=production webpack && tsc --emitDeclarationOnly",
     "test": "node --test"
   },
   "license": "MIT",
   "devDependencies": {
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.1",
     "compression-webpack-plugin": "^10.0.0",
-    "esbuild-loader": "^3.0.1",
     "prettier": "^2.8.8",
     "ts-loader": "^9.4.2",
+    "typescript": "^5.3.3",
     "webpack": "^5.82.1",
-    "webpack-cli": "^5.1.1",
-    "typescript": "^5.3.3"
+    "webpack-cli": "^5.1.1"
   },
   "dependencies": {
     "@sqlite.org/sqlite-wasm": "^3.45.1-build1",
-    "react": "^18.2.0"
+    "process": "^0.11.10"
   }
 }

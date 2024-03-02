@@ -3,7 +3,7 @@ declare const IS_VSCODE: boolean
 type CategoricalChoiceType = null | boolean | number | string
 type TrialState = "Running" | "Complete" | "Pruned" | "Fail" | "Waiting"
 type TrialStateFinished = "Complete" | "Fail" | "Pruned"
-type StudyDirection = "maximize" | "minimize" | "not_set"
+type StudyDirection = "maximize" | "minimize"
 
 type FloatDistribution = {
   type: "FloatDistribution"

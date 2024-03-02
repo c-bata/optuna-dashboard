@@ -1,12 +1,6 @@
 import { JournalFileStorage } from "./journal"
 import { SQLite3Storage } from "./sqlite3"
 import { Study, StudySummary } from "../entity"
-export {
-  useSetStorageState,
-  useStorageState,
-  useStorageValue,
-  StorageProvider,
-} from "./context"
 
 export type OptunaStorage = {
   getStudies: () => Promise<StudySummary[]>

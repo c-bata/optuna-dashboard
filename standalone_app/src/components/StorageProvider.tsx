@@ -1,5 +1,5 @@
 import React, { FC, createContext, useState, useContext, Dispatch } from "react"
-import { OptunaStorage } from "."
+import { OptunaStorage } from "@optuna/tslib"
 
 export const StorageContext = createContext<{
   storage: OptunaStorage | null
@@ -9,19 +9,22 @@ export const StorageContext = createContext<{
   setStorage: () => {},
 })
 
-export const useStorageState = (): [OptunaStorage | null, Dispatch<OptunaStorage | null>] => {
-    const { storage, setStorage } =  useContext(StorageContext)
-    return [storage, setStorage]
+export const useStorageState = (): [
+  OptunaStorage | null,
+  Dispatch<OptunaStorage | null>,
+] => {
+  const { storage, setStorage } = useContext(StorageContext)
+  return [storage, setStorage]
 }
 
 export const useStorageValue = (): OptunaStorage | null => {
-    const { storage } =  useContext(StorageContext)
-    return storage
+  const { storage } = useContext(StorageContext)
+  return storage
 }
 
 export const useSetStorageState = (): Dispatch<OptunaStorage | null> => {
-    const { setStorage } =  useContext(StorageContext)
-    return setStorage
+  const { setStorage } = useContext(StorageContext)
+  return setStorage
 }
 
 export const StorageProvider: FC<{

@@ -28,7 +28,7 @@ import Brightness7Icon from "@mui/icons-material/Brightness7"
 import { Link } from "react-router-dom"
 import { Search } from "@mui/icons-material"
 import { StorageLoader } from "./StorageLoader"
-import { useStorageValue } from "@optuna/tslib"
+import { useStorageValue } from "./StorageProvider"
 
 export const StudyList: FC<{
   toggleColorMode: () => void

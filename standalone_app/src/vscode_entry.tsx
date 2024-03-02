@@ -2,9 +2,12 @@ import React, { FC, useEffect } from "react"
 import ReactDOM from "react-dom/client"
 import "./index.css"
 import { App } from "./components/App"
-import { StorageProvider, useSetStorageState, OptunaStorage, Study, StudySummary } from "@optuna/tslib"
+import {
+  StorageProvider,
+  useSetStorageState,
+} from "./components/StorageProvider"
 
-class StorageWrapper implements OptunaStorage {
+class StorageWrapper {
   summaries: StudySummary[]
   constructor(summaries: StudySummary[]) {
     this.summaries = summaries

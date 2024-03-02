@@ -3,16 +3,8 @@ const path = require('path');
 const mode = process.env.WASM_INLINE === 'production' ? 'production' : 'development';
 const isDev = mode === 'development';
 
-const typeScriptLoader = process.env.TYPESCRIPT_LOADER === "esbuild-loader" ? {
-    test: /\.tsx?$/,
-    exclude: [/node_modules/],
-    loader: 'esbuild-loader',
-    options: {
-        loader: 'tsx',
-        tsconfigRaw: require('./tsconfig.json')
-    }
-} : {
-    test: /\.tsx?$/,
+const typeScriptLoader = {
+    test: /\.ts$/,
     exclude: [/node_modules/],
     loader: 'ts-loader',
     options: {
@@ -24,6 +16,13 @@ const typeScriptLoader = process.env.TYPESCRIPT_LOADER === "esbuild-loader" ? {
 
 var config = {
     mode,
+    devtool: "source-map",
+    cache: {
+        type: 'filesystem',
+        buildDependencies: {
+            config: [__filename],
+        }
+    },
     experiments: {
         syncWebAssembly: true,
         asyncWebAssembly: true,
@@ -44,23 +43,11 @@ var config = {
         ]
     },
     resolve: {
-        extensions: ['.ts', '.tsx', '.js']
+        extensions: ['.ts', '.js']
     }
 };
 
-if (isDev) {
-    config.devtool = 'source-map';
-    config.cache = {
-        type: 'filesystem',
-        buildDependencies: {
-            config: [__filename],
-        }
-    }
-    console.log('= = = = = = = = = = = = = = = = = = =');
-    console.log('DEVELOPMENT BUILD');
-    console.log(process.env.TYPESCRIPT_LOADER === 'esbuild-loader' ? 'esbuild-loader' : 'ts-loader');
-    console.log('= = = = = = = = = = = = = = = = = = =');
-} else {
+if (!isDev) {
     const CompressionPlugin = require("compression-webpack-plugin");
     config.plugins.push(new CompressionPlugin())
 }

@@ -17,10 +17,4 @@ export type {
   TrialStateFinished,
   TrialIntermediateValue,
 } from "./entity"
-export {
-  getStorage,
-  useSetStorageState,
-  useStorageState,
-  useStorageValue,
-  StorageProvider,
-} from "./Storage"
+export { getStorage } from "./Storage"

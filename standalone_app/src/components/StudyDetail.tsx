@@ -19,7 +19,7 @@ import { TrialTable } from "./TrialTable"
 import { PlotHistory } from "./PlotHistory"
 import { PlotImportance } from "./PlotImportance"
 import { PlotIntermediateValues } from "./PlotIntermediateValues"
-import { useStorageValue } from "@optuna/tslib"
+import { useStorageValue } from "./StorageProvider"
 
 export const StudyDetail: FC<{
   toggleColorMode: () => void
