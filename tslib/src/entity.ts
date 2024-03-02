@@ -1,11 +1,8 @@
-declare const IS_VSCODE: boolean
+export type TrialState = "Running" | "Complete" | "Pruned" | "Fail" | "Waiting"
+export type TrialStateFinished = "Complete" | "Fail" | "Pruned"
+export type StudyDirection = "maximize" | "minimize"
 
-type CategoricalChoiceType = null | boolean | number | string
-type TrialState = "Running" | "Complete" | "Pruned" | "Fail" | "Waiting"
-type TrialStateFinished = "Complete" | "Fail" | "Pruned"
-type StudyDirection = "maximize" | "minimize" | "not_set"
-
-type FloatDistribution = {
+export type FloatDistribution = {
   type: "FloatDistribution"
   low: number
   high: number
@@ -13,7 +10,7 @@ type FloatDistribution = {
   log: boolean
 }
 
-type IntDistribution = {
+export type IntDistribution = {
   type: "IntDistribution"
   low: number
   high: number
@@ -21,38 +18,40 @@ type IntDistribution = {
   log: boolean
 }
 
-type CategoricalDistribution = {
+export type CategoricalChoiceType = null | boolean | number | string
+
+export type CategoricalDistribution = {
   type: "CategoricalDistribution"
   choices: CategoricalChoiceType[]
 }
 
-type TrialIntermediateValue = {
+export type TrialIntermediateValue = {
   step: number
   value: number
 }
 
-type Distribution =
+export type Distribution =
   | FloatDistribution
   | IntDistribution
   | CategoricalDistribution
 
-type Attribute = {
+export type Attribute = {
   key: string
   value: string
 }
 
-type AttributeSpec = {
+export type AttributeSpec = {
   key: string
   sortable: boolean
 }
 
-type StudySummary = {
+export type StudySummary = {
   study_id: number
   study_name: string
   directions: StudyDirection[]
 }
 
-type Study = {
+export type Study = {
   study_id: number
   study_name: string
   directions: StudyDirection[]
@@ -63,7 +62,7 @@ type Study = {
   trials: Trial[]
 }
 
-type Trial = {
+export type Trial = {
   trial_id: number
   number: number
   study_id: number
@@ -76,7 +75,7 @@ type Trial = {
   datetime_complete?: Date
 }
 
-type TrialParam = {
+export type TrialParam = {
   name: string
   param_internal_value: number
   param_external_value: CategoricalChoiceType
@@ -84,11 +83,6 @@ type TrialParam = {
   distribution: Distribution
 }
 
-type SearchSpaceItem = {
+export type SearchSpaceItem = {
   name: string
-}
-
-type ParamImportance = {
-  name: string
-  importance: number
 }

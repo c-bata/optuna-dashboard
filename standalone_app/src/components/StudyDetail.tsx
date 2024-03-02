@@ -19,7 +19,7 @@ import { TrialTable } from "./TrialTable"
 import { PlotHistory } from "./PlotHistory"
 import { PlotImportance } from "./PlotImportance"
 import { PlotIntermediateValues } from "./PlotIntermediateValues"
-import { StorageContext } from "./StorageProvider"
+import { useStorageValue } from "@optuna/tslib"
 
 export const StudyDetail: FC<{
   toggleColorMode: () => void
@@ -28,7 +28,7 @@ export const StudyDetail: FC<{
   const { idx } = useParams<{ idx: string }>()
   const idxNumber = parseInt(idx || "", 10)
 
-  const { storage } = useContext(StorageContext)
+  const storage = useStorageValue()
   const [study, setStudy] = useState<Study | null>(null)
   useEffect(() => {
     const fetchStudy = async () => {

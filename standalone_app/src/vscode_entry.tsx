@@ -2,14 +2,10 @@ import React, { FC, useEffect, useContext } from "react"
 import ReactDOM from "react-dom/client"
 import "./index.css"
 import { App } from "./components/App"
-import {
-  StorageProvider,
-  getStorage,
-  StorageContext,
-} from "./components/StorageProvider"
+import { StorageProvider, getStorage, useSetStorageState } from "@optuna/tslib"
 
 export const AppWrapper: FC = () => {
-  const { setStorage } = useContext(StorageContext)
+  const setStorage = useSetStorageState()
 
   useEffect(() => {
     window.addEventListener("message", (event) => {

@@ -5,9 +5,7 @@ import React, {
   MouseEventHandler,
   useRef,
   useState,
-  useContext,
 } from "react"
-import { StorageContext, getStorage } from "./StorageProvider"
 import {
   Card,
   CardActionArea,
@@ -16,11 +14,12 @@ import {
   useTheme,
 } from "@mui/material"
 import UploadFileIcon from "@mui/icons-material/UploadFile"
+import { useSetStorageState, getStorage } from "@optuna/tslib"
 
 export const StorageLoader: FC = () => {
   const theme = useTheme()
   const [dragOver, setDragOver] = useState<boolean>(false)
-  const { setStorage } = useContext(StorageContext)
+  const setStorage = useSetStorageState()
 
   const inputRef = useRef<HTMLInputElement>(null)
 

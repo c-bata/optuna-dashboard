@@ -1,3 +1,12 @@
+import {
+  TrialState,
+  Study,
+  Trial,
+  Distribution,
+  TrialParam,
+  StudySummary,
+} from "../entity"
+
 // JournalStorage
 enum JournalOperation {
   CREATE_STUDY = 0,
@@ -97,15 +106,8 @@ const parseDistribution = (distribution: string): Distribution => {
     }
   } else {
     return {
-      // TODO(gen740): support other types
       type: "CategoricalDistribution",
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      choices: distributionJson["attributes"]["choices"].map((choice: any) => {
-        return {
-          pytype: "str",
-          value: choice.toString(),
-        }
-      }),
+      choices: distributionJson["attributes"]["choices"],
     }
   }
 }
@@ -199,7 +201,7 @@ class JournalStorage {
                 } else if (distribution.type === "IntDistribution") {
                   return value.toString()
                 } else {
-                  return distribution.choices[value].value
+                  return distribution.choices[value]
                 }
               })(),
               distribution: distribution,
@@ -325,7 +327,7 @@ class JournalStorage {
   }
 }
 
-export class JournalFileStorage implements OptunaStorage {
+export class JournalFileStorage {
   studies: Study[]
   constructor(arrayBuffer: ArrayBuffer) {
     this.studies = loadJournalStorage(arrayBuffer)

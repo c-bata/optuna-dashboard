@@ -1,5 +1,18 @@
 // @ts-ignore
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm"
+import {
+  Attribute,
+  TrialState,
+  Study,
+  Trial,
+  Distribution,
+  TrialParam,
+  StudySummary,
+  SearchSpaceItem,
+  TrialIntermediateValue,
+  StudyDirection,
+  CategoricalChoiceType,
+} from "../entity"
 
 type SQLite3DB = {
   exec(options: {
@@ -9,7 +22,7 @@ type SQLite3DB = {
   }): void
 }
 
-export class SQLite3Storage implements OptunaStorage {
+export class SQLite3Storage {
   db: Promise<SQLite3DB>
   summaries_cache: StudySummary[] | null
   constructor(arrayBuffer: ArrayBuffer) {
@@ -230,8 +243,8 @@ const getTrialValues = (
   db: SQLite3DB,
   trialId: number,
   schemaVersion: string
-): TrialValueNumber[] => {
-  const values: TrialValueNumber[] = []
+): number[] => {
+  const values: number[] = []
   if (isGreaterSchemaVersion(schemaVersion, "v3.0.0.c")) {
     db.exec({
       sql:
@@ -291,13 +304,13 @@ const getTrialParams = (db: SQLite3DB, trialId: number): TrialParam[] => {
 const paramInternalValueToExternalValue = (
   distribution: Distribution,
   internalValue: number
-): string => {
+): CategoricalChoiceType => {
   if (distribution.type === "FloatDistribution") {
     return internalValue.toString()
   } else if (distribution.type === "IntDistribution") {
     return internalValue.toString()
   } else {
-    return distribution.choices[internalValue].value
+    return distribution.choices[internalValue]
   }
 }
 

@@ -7,12 +7,16 @@ PYTHON_FILES := $(shell find optuna_dashboard/ -name '*.py')
 DASHBOARD_TS_IN := $(shell find ./optuna_dashboard -name '*.ts' -o -name '*.tsx')
 DASHBOARD_TS_OUT = optuna_dashboard/public/bundle.js optuna_dashboard/public/favicon.ico
 RUSTLIB_OUT = rustlib/pkg/optuna_wasm.js rustlib/pkg/optuna_wasm_bg.wasm rustlib/pkg/package.json
+TSLIB_OUT = tslib/src/index.js
 STANDALONE_OUT = standalone_app/public/bundle.js vscode/assets/bundle.js
 
 $(RUSTLIB_OUT): rustlib/src/*.rs rustlib/Cargo.toml
 	cd rustlib && wasm-pack build --target web
 
-$(STANDALONE_OUT): $(RUSTLIB_OUT)
+$(TSLIB_OUT): tslib/src/**/*.ts
+	cd tslib && npm run build
+
+$(STANDALONE_OUT): $(RUSTLIB_OUT) $(TSLIB_OUT)
 	cd standalone_app && npm install && npm run build:$(MODE)
 
 $(DASHBOARD_TS_OUT): $(DASHBOARD_TS_IN)

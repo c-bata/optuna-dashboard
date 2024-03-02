@@ -1,6 +1,5 @@
 import React, {
   FC,
-  useContext,
   useDeferredValue,
   useEffect,
   useMemo,
@@ -29,13 +28,13 @@ import Brightness7Icon from "@mui/icons-material/Brightness7"
 import { Link } from "react-router-dom"
 import { Search } from "@mui/icons-material"
 import { StorageLoader } from "./StorageLoader"
-import { StorageContext } from "./StorageProvider"
+import { useStorageValue } from "@optuna/tslib"
 
 export const StudyList: FC<{
   toggleColorMode: () => void
 }> = ({ toggleColorMode }) => {
   const theme = useTheme()
-  const { storage } = useContext(StorageContext)
+  const storage = useStorageValue()
   const [studies, setStudies] = useState<StudySummary[]>([])
   const [_studyFilterText, setStudyFilterText] = useState<string>("")
   const [sortBy, setSortBy] = useState<"id-asc" | "id-desc">("id-asc")

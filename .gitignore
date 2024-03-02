@@ -11,6 +11,8 @@ optuna_dashboard/public/
 # JS
 node_modules/
 standalone_app/public/
+tslib/src/**/*.js
+tslib/src/**/*.js.map
 
 # VSCode
 vscode/assets/

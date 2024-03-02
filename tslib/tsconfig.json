@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "strictNullChecks": true,
+    "moduleResolution": "node",
+    "noUnusedLocals": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    "noImplicitAny": true,
+    "lib": ["dom", "esnext"],
+    "module": "esnext",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "es5",
+    "jsx": "react",
+    "sourceMap": true,
+    "strict": true
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "types": ["node"]
+}
