@@ -1,4 +1,11 @@
-import React, { FC, useContext, useEffect, useState } from "react"
+import React, {
+  FC,
+  useContext,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+} from "react"
 import {
   AppBar,
   Typography,
@@ -20,7 +27,6 @@ import SortIcon from "@mui/icons-material/Sort"
 import Brightness4Icon from "@mui/icons-material/Brightness4"
 import Brightness7Icon from "@mui/icons-material/Brightness7"
 import { Link } from "react-router-dom"
-import { DebouncedInputTextField } from "./Debounce"
 import { Search } from "@mui/icons-material"
 import { StorageLoader } from "./StorageLoader"
 import { StorageContext } from "./StorageProvider"
@@ -31,6 +37,10 @@ export const StudyList: FC<{
   const theme = useTheme()
   const { storage } = useContext(StorageContext)
   const [studies, setStudies] = useState<StudySummary[]>([])
+  const [_studyFilterText, setStudyFilterText] = useState<string>("")
+  const [sortBy, setSortBy] = useState<"id-asc" | "id-desc">("id-asc")
+  const studyFilterText = useDeferredValue(_studyFilterText)
+
   useEffect(() => {
     const fetchStudies = async () => {
       if (storage === null) {
@@ -42,9 +52,7 @@ export const StudyList: FC<{
     fetchStudies()
   }, [storage])
 
-  const [studyFilterText, setStudyFilterText] = useState<string>("")
-  const [sortBy, setSortBy] = useState<"id-asc" | "id-desc">("id-asc")
-  const studyFilter = (row: Study): boolean => {
+  const studyFilter = (row: StudySummary): boolean => {
     const keywords = studyFilterText.split(" ")
     return !keywords.every((k) => {
       if (k === "") {
@@ -53,10 +61,13 @@ export const StudyList: FC<{
       return row.study_name.indexOf(k) >= 0
     })
   }
-  let filteredStudies: StudySummary[] = studies.filter((s) => !studyFilter(s))
-  if (sortBy === "id-desc") {
-    filteredStudies = filteredStudies.reverse()
-  }
+  const filteredStudies = useMemo(() => {
+    let filteredStudies: StudySummary[] = studies.filter((s) => !studyFilter(s))
+    if (sortBy === "id-desc") {
+      filteredStudies = filteredStudies.reverse()
+    }
+    return filteredStudies
+  }, [studyFilterText, studies])
 
   const Select = styled(TextField)(({ theme }) => ({
     "& .MuiInputBase-input": {
@@ -141,26 +152,23 @@ export const StudyList: FC<{
         <Card sx={{ margin: theme.spacing(2) }}>
           <CardContent>
             <Box sx={{ display: "flex" }}>
-              <DebouncedInputTextField
-                onChange={(s) => {
-                  setStudyFilterText(s)
+              <TextField
+                onChange={(e) => {
+                  setStudyFilterText(e.target.value)
                 }}
-                delay={500}
-                textFieldProps={{
-                  fullWidth: true,
-                  id: "search-study",
-                  variant: "outlined",
-                  placeholder: "Search study",
-                  sx: { maxWidth: 500 },
-                  InputProps: {
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SvgIcon fontSize="small" color="action">
-                          <Search />
-                        </SvgIcon>
-                      </InputAdornment>
-                    ),
-                  },
+                id="search-study"
+                variant="outlined"
+                placeholder="Search study"
+                fullWidth
+                sx={{ maxWidth: 500 }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SvgIcon fontSize="small" color="action">
+                        <Search />
+                      </SvgIcon>
+                    </InputAdornment>
+                  ),
                 }}
               />
               {sortBySelect}
