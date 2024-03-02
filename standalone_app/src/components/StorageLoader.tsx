@@ -5,11 +5,9 @@ import React, {
   MouseEventHandler,
   useRef,
   useState,
+  useContext,
 } from "react"
-import { loadSQLite3Storage } from "../sqlite3"
-import { loadJournalStorage } from "../journalStorage"
-import { useSetRecoilState } from "recoil"
-import { studiesState } from "../state"
+import { StorageContext, getStorage } from "../storage"
 import {
   Card,
   CardActionArea,
@@ -22,8 +20,8 @@ import UploadFileIcon from "@mui/icons-material/UploadFile"
 export const StorageLoader: FC = () => {
   const theme = useTheme()
   const [dragOver, setDragOver] = useState<boolean>(false)
+  const { setStorage } = useContext(StorageContext)
 
-  const setStudies = useSetRecoilState<Study[]>(studiesState)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const loadStorageFromFile = (file: File): void => {
@@ -31,13 +29,8 @@ export const StorageLoader: FC = () => {
     r.addEventListener("load", () => {
       const arrayBuffer = r.result as ArrayBuffer | null
       if (arrayBuffer !== null) {
-        const header = new Uint8Array(arrayBuffer, 0, 16)
-        const headerString = new TextDecoder().decode(header)
-        if (headerString === "SQLite format 3\u0000") {
-          loadSQLite3Storage(arrayBuffer, setStudies)
-        } else {
-          loadJournalStorage(arrayBuffer, setStudies)
-        }
+        const s = getStorage(arrayBuffer)
+        setStorage(s)
       }
     })
     r.readAsArrayBuffer(file)

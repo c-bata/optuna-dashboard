@@ -1,5 +1,3 @@
-import { SetterOrUpdater } from "recoil"
-
 // JournalStorage
 enum JournalOperation {
   CREATE_STUDY = 0,
@@ -327,10 +325,20 @@ class JournalStorage {
   }
 }
 
-export const loadJournalStorage = (
-  arrayBuffer: ArrayBuffer,
-  setter: SetterOrUpdater<Study[]>
-): void => {
+export class JournalFileStorage implements OptunaStorage {
+  studies: Study[]
+  constructor(arrayBuffer: ArrayBuffer) {
+    this.studies = loadJournalStorage(arrayBuffer)
+  }
+  getStudies = async (): Promise<StudySummary[]> => {
+    return this.studies
+  }
+  getStudy = async (idx: number): Promise<Study | null> => {
+    return this.studies[idx] || null
+  }
+}
+
+const loadJournalStorage = (arrayBuffer: ArrayBuffer): Study[] => {
   const decoder = new TextDecoder("utf-8")
   const logs = decoder.decode(arrayBuffer).split("\n")
 
@@ -381,6 +389,5 @@ export const loadJournalStorage = (
     }
   }
 
-  const studies = journalStorage.getStudies()
-  setter((prev) => [...prev, ...studies])
+  return journalStorage.getStudies()
 }

@@ -1,4 +1,4 @@
-import React, { FC } from "react"
+import React, { FC, useContext, useState, useEffect } from "react"
 import { Link, useParams } from "react-router-dom"
 import {
   AppBar,
@@ -15,17 +15,11 @@ import Grid2 from "@mui/material/Unstable_Grid2"
 import { Home } from "@mui/icons-material"
 import Brightness4Icon from "@mui/icons-material/Brightness4"
 import Brightness7Icon from "@mui/icons-material/Brightness7"
-import { useRecoilValue } from "recoil"
-import { studiesState } from "../state"
 import { TrialTable } from "./TrialTable"
 import { PlotHistory } from "./PlotHistory"
 import { PlotImportance } from "./PlotImportance"
 import { PlotIntermediateValues } from "./PlotIntermediateValues"
-
-const useStudyValue = (idx: number): Study | null => {
-  const studies = useRecoilValue<Study[]>(studiesState)
-  return studies[idx] || null
-}
+import { StorageContext } from "../storage"
 
 export const StudyDetail: FC<{
   toggleColorMode: () => void
@@ -33,7 +27,20 @@ export const StudyDetail: FC<{
   const theme = useTheme()
   const { idx } = useParams<{ idx: string }>()
   const idxNumber = parseInt(idx || "", 10)
-  const study = useStudyValue(idxNumber)
+
+  const { storage } = useContext(StorageContext)
+  const [study, setStudy] = useState<Study | null>(null)
+  useEffect(() => {
+    const fetchStudy = async () => {
+      console.log("fetchStudy: " + idx)
+      if (storage === null) {
+        return
+      }
+      const study = await storage.getStudy(idxNumber)
+      setStudy(study)
+    }
+    fetchStudy()
+  }, [storage])
 
   return (
     <div>

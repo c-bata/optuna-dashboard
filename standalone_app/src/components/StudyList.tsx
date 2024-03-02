@@ -1,4 +1,4 @@
-import React, { FC, useState } from "react"
+import React, { FC, useContext, useEffect, useMemo, useState } from "react"
 import {
   AppBar,
   Typography,
@@ -19,18 +19,28 @@ import { styled } from "@mui/system"
 import SortIcon from "@mui/icons-material/Sort"
 import Brightness4Icon from "@mui/icons-material/Brightness4"
 import Brightness7Icon from "@mui/icons-material/Brightness7"
-import { useRecoilValue } from "recoil"
-import { studiesState } from "../state"
 import { Link } from "react-router-dom"
 import { DebouncedInputTextField } from "./Debounce"
 import { Search } from "@mui/icons-material"
 import { StorageLoader } from "./StorageLoader"
+import { StorageContext } from "../storage"
 
 export const StudyList: FC<{
   toggleColorMode: () => void
 }> = ({ toggleColorMode }) => {
   const theme = useTheme()
-  const studies = useRecoilValue<Study[]>(studiesState)
+  const { storage } = useContext(StorageContext)
+  const [studies, setStudies] = useState<StudySummary[]>([])
+  useEffect(() => {
+    const fetchStudies = async () => {
+      if (storage === null) {
+        return
+      }
+      const studies = await storage.getStudies()
+      setStudies(studies)
+    }
+    fetchStudies()
+  }, [storage])
 
   const [studyFilterText, setStudyFilterText] = useState<string>("")
   const [sortBy, setSortBy] = useState<"id-asc" | "id-desc">("id-asc")
@@ -43,7 +53,7 @@ export const StudyList: FC<{
       return row.study_name.indexOf(k) >= 0
     })
   }
-  let filteredStudies: Study[] = studies.filter((s) => !studyFilter(s))
+  let filteredStudies: StudySummary[] = studies.filter((s) => !studyFilter(s))
   if (sortBy === "id-desc") {
     filteredStudies = filteredStudies.reverse()
   }

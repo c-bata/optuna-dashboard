@@ -1,6 +1,5 @@
 // @ts-ignore
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm"
-import { SetterOrUpdater } from "recoil"
 
 type SQLite3DB = {
   exec(options: {
@@ -10,44 +9,51 @@ type SQLite3DB = {
   }): void
 }
 
-export const loadSQLite3Storage = (
-  arrayBuffer: ArrayBuffer,
-  setter: SetterOrUpdater<Study[]>
-): void => {
-  sqlite3InitModule({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    print: (...args: any): void => {
-      console.log(args)
-    },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    printErr: (...args: any): void => {
-      console.log(args)
-    },
-    // @ts-ignore
-  }).then((sqlite3) => {
-    const p = sqlite3.wasm.allocFromTypedArray(arrayBuffer)
-    const db = new sqlite3.oo1.DB()
-    const rc = sqlite3.capi.sqlite3_deserialize(
+export class SQLite3Storage implements OptunaStorage {
+  db: Promise<SQLite3DB>
+  constructor(arrayBuffer: ArrayBuffer) {
+    this.db = this.initDB(arrayBuffer)
+  }
+
+  async initDB(arrayBuffer: ArrayBuffer): Promise<SQLite3DB> {
+    return sqlite3InitModule({
+      print: console.log,
+      printErr: console.log,
       // @ts-ignore
-      db.pointer,
-      "main",
-      p,
-      arrayBuffer.byteLength,
-      arrayBuffer.byteLength,
-      sqlite3.capi.SQLITE_DESERIALIZE_FREEONCLOSE
-    )
-    db.checkRc(rc)
-    try {
-      const schemaVersion = getSchemaVersion(db)
-      if (!isSupportedSchema(schemaVersion)) {
-        return
-      }
-      const studies = getStudies(db, schemaVersion)
-      setter((prev) => [...prev, ...studies])
-    } finally {
-      db.close()
+    }).then((sqlite3) => {
+      const p = sqlite3.wasm.allocFromTypedArray(arrayBuffer)
+      const db = new sqlite3.oo1.DB()
+      const rc = sqlite3.capi.sqlite3_deserialize(
+        // @ts-ignore
+        db.pointer,
+        "main",
+        p,
+        arrayBuffer.byteLength,
+        arrayBuffer.byteLength,
+        sqlite3.capi.SQLITE_DESERIALIZE_FREEONCLOSE
+      )
+      db.checkRc(rc)
+      return db
+    })
+  }
+
+  getStudies = async (): Promise<StudySummary[]> => {
+    const db = await this.db
+    const schemaVersion = getSchemaVersion(db)
+    if (!isSupportedSchema(schemaVersion)) {
+      return []
     }
-  })
+    return getStudies(db, schemaVersion)
+  }
+
+  getStudy = async (idx: number): Promise<Study | null> => {
+    const db = await this.db
+    const schemaVersion = getSchemaVersion(db)
+    if (!isSupportedSchema(schemaVersion)) {
+      return null
+    }
+    return getStudies(db, schemaVersion)[idx] || null
+  }
 }
 
 const getSchemaVersion = (db: SQLite3DB): string => {
