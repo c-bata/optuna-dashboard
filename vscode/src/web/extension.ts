@@ -1,4 +1,5 @@
 import * as vscode from "vscode"
+import { getStorage } from "@optuna/tslib"
 
 export function activate(context: vscode.ExtensionContext) {
   console.log(
@@ -34,10 +35,12 @@ export function activate(context: vscode.ExtensionContext) {
         switch (message.type) {
           case "webviewDidLoad":
             console.log("[host] Receive a webviewDidLoad event.")
-            const storageContentBase64 = await readFileAsBase64(fileUri)
+            const uint8Array = await vscode.workspace.fs.readFile(fileUri)
+            const storage = getStorage(uint8Array)
+            const summaries = await storage.getStudies()
             panel.webview.postMessage({
-              type: "optunaStorage",
-              content: storageContentBase64,
+              type: "studySummaries",
+              content: summaries,
             })
             break
         }
@@ -46,21 +49,6 @@ export function activate(context: vscode.ExtensionContext) {
   )
 
   context.subscriptions.push(disposable)
-}
-
-async function readFileAsBase64(uri: vscode.Uri): Promise<string> {
-  const uint8Array = await vscode.workspace.fs.readFile(uri)
-  const base64 = uint8ArrayToBase64(uint8Array)
-  return base64
-}
-
-function uint8ArrayToBase64(uint8Array: Uint8Array): string {
-  const binString = Array.prototype.map
-    .call(uint8Array, function (ch) {
-      return String.fromCharCode(ch)
-    })
-    .join("")
-  return btoa(binString)
 }
 
 function getWebviewContent(indexJsUri: vscode.Uri): string {

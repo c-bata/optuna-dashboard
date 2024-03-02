@@ -14,7 +14,7 @@ $(RUSTLIB_OUT): rustlib/src/*.rs rustlib/Cargo.toml
 	cd rustlib && wasm-pack build --target web
 
 $(TSLIB_OUT): tslib/src/**/*.ts
-	cd tslib && npm run build
+	cd tslib && npm run build:$(MODE)
 
 $(STANDALONE_OUT): $(RUSTLIB_OUT) $(TSLIB_OUT)
 	cd standalone_app && npm install && npm run build:$(MODE)

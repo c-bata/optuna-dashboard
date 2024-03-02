@@ -3,13 +3,28 @@
   "private": true,
   "version": "0.0.1",
   "description": "Common utilities for Optuna Dashboard",
-  "main": "src/index.js",
+  "main": "pkg/index.js",
+  "types": "pkg/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/optuna/optuna-dashboard.git"
+  },
   "scripts": {
-    "build": "tsc",
+    "watch": "NODE_ENV=development TYPESCRIPT_LOADER=esbuild-loader webpack --watch",
+    "build:dev": "NODE_ENV=development TYPESCRIPT_LOADER=esbuild-loader webpack && tsc --emitDeclarationOnly",
+    "build:prd": "NODE_ENV=production webpack && tsc --emitDeclarationOnly",
     "test": "node --test"
   },
   "license": "MIT",
   "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.1",
+    "compression-webpack-plugin": "^10.0.0",
+    "esbuild-loader": "^3.0.1",
+    "prettier": "^2.8.8",
+    "ts-loader": "^9.4.2",
+    "webpack": "^5.82.1",
+    "webpack-cli": "^5.1.1",
     "typescript": "^5.3.3"
   },
   "dependencies": {

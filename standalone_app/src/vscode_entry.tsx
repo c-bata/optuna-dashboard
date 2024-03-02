@@ -1,8 +1,21 @@
-import React, { FC, useEffect, useContext } from "react"
+import React, { FC, useEffect } from "react"
 import ReactDOM from "react-dom/client"
 import "./index.css"
 import { App } from "./components/App"
-import { StorageProvider, getStorage, useSetStorageState } from "@optuna/tslib"
+import { StorageProvider, useSetStorageState, OptunaStorage, Study, StudySummary } from "@optuna/tslib"
+
+class StorageWrapper implements OptunaStorage {
+  summaries: StudySummary[]
+  constructor(summaries: StudySummary[]) {
+    this.summaries = summaries
+  }
+  getStudies = async (): Promise<StudySummary[]> => {
+    return this.summaries
+  }
+  getStudy = async (idx: number): Promise<Study | null> => {
+    return null
+  }
+}
 
 export const AppWrapper: FC = () => {
   const setStorage = useSetStorageState()
@@ -10,23 +23,11 @@ export const AppWrapper: FC = () => {
   useEffect(() => {
     window.addEventListener("message", (event) => {
       const message = event.data
-      let fileContentBase64: string
-      let binaryString: string
-      let len: number
-      let bytes: Uint8Array
-      let arrayBuffer: ArrayBuffer
-
       switch (message.type) {
-        case "optunaStorage":
-          fileContentBase64 = message.content
-          binaryString = atob(fileContentBase64)
-          len = binaryString.length
-          bytes = new Uint8Array(len)
-          for (let i = 0; i < len; i++) {
-            bytes[i] = binaryString.charCodeAt(i)
-          }
-          arrayBuffer = bytes.buffer
-          setStorage(getStorage(arrayBuffer))
+        case "studySummaries":
+          const summaries: StudySummary[] = message.content
+          const storage = new StorageWrapper(summaries)
+          setStorage(storage)
           break
       }
     })

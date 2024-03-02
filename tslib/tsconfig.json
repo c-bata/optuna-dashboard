@@ -12,10 +12,13 @@
     "lib": ["dom", "esnext"],
     "module": "esnext",
     "esModuleInterop": true,
+    "rootDir": "./src",
+    "outDir": "./pkg",
     "allowSyntheticDefaultImports": true,
     "target": "es5",
     "jsx": "react",
     "sourceMap": true,
+    "declaration": true,
     "strict": true
   },
   "include": [
