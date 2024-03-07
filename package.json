@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.1",
   "description": "Dashboard for Optuna",
-  "main": "index.js",
+  "main": "jupyterlab/optuna-dashboard-lib.js",
   "scripts": {
     "fmt": "biome format --write .",
     "lint": "npm run lint:eslint && npm run lint:fmt",
@@ -11,13 +11,14 @@
     "lint:fmt": "biome format .",
     "watch": "NODE_ENV=development TYPESCRIPT_LOADER=esbuild-loader webpack --watch",
     "build": "webpack",
+    "build:jupyterlab-lib": "webpack -c webpack.jupyterlab-lib.config.js",
     "build:dev": "NODE_ENV=development TYPESCRIPT_LOADER=esbuild-loader webpack",
     "build:prd": "NODE_ENV=production webpack",
     "test": "jest typescript_tests"
   },
   "author": "Masashi Shibata",
   "license": "MIT",
-  "dependencies": {
+  "devDependencies": {
     "@emotion/react": "^11.11.3",
     "@emotion/styled": "^11.11.0",
     "@mui/icons-material": "^5.15.6",
@@ -43,9 +44,7 @@
     "remark-gfm": "^4.0.0",
     "remark-math": "^6.0.0",
     "three": "^0.160.1",
-    "wavesurfer.js": "^7.7.0"
-  },
-  "devDependencies": {
+    "wavesurfer.js": "^7.7.0",
     "@babel/core": "^7.23.9",
     "@babel/preset-env": "^7.23.9",
     "@biomejs/biome": "1.5.3",

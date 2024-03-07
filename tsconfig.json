@@ -18,10 +18,11 @@
     "target": "es5",
     "jsx": "react",
     "sourceMap": true,
+    "declaration": true,
     "strict": true
   },
   "files": [
-    "./optuna_dashboard/ts/index.tsx"
+    "./optuna_dashboard/ts/lib.ts"
   ],
   "include": [
     "./optuna_dashboard/ts/types/**/*",
