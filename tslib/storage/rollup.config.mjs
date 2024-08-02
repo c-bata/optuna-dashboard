@@ -1,5 +1,6 @@
 import typescript from "@rollup/plugin-typescript"
 import { nodeResolve } from '@rollup/plugin-node-resolve';
+import { wasm } from '@rollup/plugin-wasm';
 
 export default {
   input: "src/index.ts",
@@ -12,6 +13,11 @@ export default {
   external: [],
   plugins: [
     nodeResolve(),
+    wasm({
+      targetEnv: "auto-inline",
+      maxFileSize: 0,
+      sync: ["sqlite3.wasm"]
+    }),
     typescript({
       declaration: true,
       declarationDir: "pkg",
