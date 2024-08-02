@@ -4,9 +4,10 @@
   "private": true,
   "version": "0.0.1",
   "description": "Loaders for Optuna storages",
-  "main": "pkg/index.js",
+  "module": "pkg/index.js",
+  "types": "pkg/index.d.ts",
   "scripts": {
-    "build": "tsc -d",
+    "build": "rollup --config",
     "test": "node --test"
   },
   "repository": {
@@ -27,6 +28,10 @@
   },
   "devDependencies": {
     "@optuna/types": "../types/",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-typescript": "^11.1.6",
+    "rollup": "^4.19.2",
+    "tslib": "^2.6.3",
     "typescript": "^5.4.5"
   }
 }
