@@ -38,6 +38,15 @@ preferential = [
     "torch",
     "botorch",
 ]
+opentelemetry = [
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-instrumentation-bottle>=0.41b0",
+    "opentelemetry-instrumentation-wsgi>=0.41b0",
+    "opentelemetry-exporter-otlp>=1.20.0",
+    "opentelemetry-exporter-prometheus>=1.12.0rc1",
+    "opentelemetry-semantic-conventions>=0.41b0",
+]
 # This field is referrenced by .readthedocs.yaml.
 docs = [
     "boto3",

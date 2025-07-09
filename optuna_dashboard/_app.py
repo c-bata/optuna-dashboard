@@ -50,6 +50,9 @@ from ._storage_url import get_storage
 from .artifact._backend import delete_all_artifacts
 from .artifact._backend import register_artifact_route
 from .artifact._backend_to_store import to_artifact_store
+from ._telemetry import initialize_telemetry
+from ._telemetry import instrument_bottle_app
+from ._telemetry_middleware import api_telemetry
 from .preferential._study import _SYSTEM_ATTR_PREFERENTIAL_STUDY
 from .preferential._study import get_best_trials as get_best_preferential_trials
 from .preferential._system_attrs import get_skipped_trial_ids
@@ -87,6 +90,9 @@ def create_app(
     debug: bool = False,
     jupyterlab_extension_context: JupyterLabExtensionContext | None = None,
 ) -> Bottle:
+    # Initialize OpenTelemetry before creating the app
+    initialize_telemetry()
+    
     app = Bottle()
     app._inmemory_cache = InMemoryCache()
 
@@ -105,6 +111,7 @@ def create_app(
 
     @app.get("/api/meta")
     @json_api_view
+    @api_telemetry("/api/meta")
     def api_meta() -> dict[str, Any]:
         meta: dict[str, Any] = {
             "artifact_is_available": artifact_store is not None,
@@ -119,6 +126,7 @@ def create_app(
 
     @app.get("/api/studies")
     @json_api_view
+    @api_telemetry("/api/studies")
     def list_studies() -> dict[str, Any]:
         studies = get_studies(storage)
         serialized = [serialize_frozen_study(s) for s in studies]
@@ -129,6 +137,7 @@ def create_app(
 
     @app.post("/api/studies")
     @json_api_view
+    @api_telemetry("/api/studies")
     def create_study() -> dict[str, Any]:
         study_name = request.json.get("study_name", None)
         request_directions = [d.lower() for d in request.json.get("directions", [])]
@@ -613,6 +622,10 @@ def create_app(
 
     register_rdb_migration_route(app, storage)
     register_artifact_route(app, storage, artifact_store)
+    
+    # Instrument the app with OpenTelemetry before returning
+    app = instrument_bottle_app(app)
+    
     return app
 
 
