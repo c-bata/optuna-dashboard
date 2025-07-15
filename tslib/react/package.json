@@ -9,7 +9,8 @@
   "scripts": {
     "build": "tsc -d",
     "storybook": "storybook dev -p 6006",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test-ct": "playwright test -c playwright-ct.config.ts"
   },
   "files": [
     "pkg",
@@ -25,12 +26,12 @@
     "url": "https://github.com/optuna/optuna-dashboard/issues"
   },
   "homepage": "https://github.com/optuna/optuna-dashboard#readme",
-  "dependencies": {
-  },
   "devDependencies": {
     "@chromatic-com/storybook": "^1.6.1",
     "@optuna/storage": "file:../storage",
     "@optuna/types": "file:../types",
+    "@playwright/experimental-ct-react": "^1.54.1",
+    "@playwright/test": "^1.54.1",
     "@storybook/addon-essentials": "^8.3.5",
     "@storybook/addon-interactions": "^8.1.11",
     "@storybook/addon-links": "^8.1.11",
@@ -51,8 +52,6 @@
     "vitest": "^1.4.0"
   },
   "peerDependencies": {
-    "react": ">=16.0.0",
-    "react-dom": ">=16.0.0",
     "@emotion/react": ">=11.0.0",
     "@emotion/styled": ">=11.0.0",
     "@mui/icons-material": ">=6.0.0",
@@ -60,6 +59,8 @@
     "@mui/material": ">=6.0.0",
     "@mui/system": ">=6.0.0",
     "@tanstack/react-table": ">=8.0.0",
-    "plotly.js-dist-min": ">=2.0.0"
+    "plotly.js-dist-min": ">=2.0.0",
+    "react": ">=16.0.0",
+    "react-dom": ">=16.0.0"
   }
 }
