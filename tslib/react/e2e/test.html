@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>useEvalTrialFilter Test Page</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      const { useState, useCallback, useEffect, useRef, createElement } = React;
+      const { createRoot } = ReactDOM;
+      
+      // Simplified version of useEvalTrialFilter hook
+      const useEvalTrialFilter = () => {
+        const iframeRef = useRef(null);
+        const pendingPromiseRef = useRef(null);
+
+        const filterFunc = useCallback(
+          (trials, filterFuncStr) => {
+            return new Promise((resolve, reject) => {
+              if (!iframeRef.current || !iframeRef.current.contentWindow) {
+                return reject(new Error("Sandbox iframe is not ready"));
+              }
+
+              if (pendingPromiseRef.current) {
+                reject(new Error("Previous evaluation still running"));
+              }
+
+              pendingPromiseRef.current = { resolve, reject };
+
+              const message = {
+                type: "filter",
+                trials,
+                filterFuncStr,
+              };
+
+              iframeRef.current.contentWindow.postMessage(message, "*");
+            });
+          },
+          []
+        );
+
+        useEffect(() => {
+          const handleMessage = (event) => {
+            const { data } = event;
+
+            if (typeof data !== "object" || data.type !== "result") return;
+
+            const response = data;
+
+            if (pendingPromiseRef.current) {
+              if (response.error) {
+                pendingPromiseRef.current.reject(new Error(response.error));
+              } else {
+                pendingPromiseRef.current.resolve(response.filteredTrials);
+              }
+              pendingPromiseRef.current = null;
+            }
+          };
+
+          window.addEventListener("message", handleMessage);
+          return () => window.removeEventListener("message", handleMessage);
+        }, []);
+
+        const renderIframeSandbox = () => {
+          const iframeSrcDoc = `
+            <script>
+              window.fetch = () => { throw new Error("Unexpected") }
+              window.XMLHttpRequest = () => { throw new Error("Unexpected") }
+              window.addEventListener('message', (event) => {
+                const { data } = event;
+                if (typeof data !== 'object' || data.type !== 'filter') return;
+      
+                const { trials, filterFuncStr } = data;
+                try {
+                  const filterFunc = eval('(' + filterFuncStr + ')');
+                  const result = trials.filter(filterFunc);
+                  parent.postMessage({ type: 'result', filteredTrials: result }, '*');
+                } catch (e) {
+                  parent.postMessage({ type: 'result', filteredTrials: [], error: String(e) }, '*');
+                }
+              });
+            </script>
+          `;
+
+          return createElement('iframe', {
+            ref: iframeRef,
+            id: 'eval-trial-filter-sandbox',
+            sandbox: 'allow-scripts',
+            style: { display: 'none' },
+            srcDoc: iframeSrcDoc,
+            title: 'JavaScript function evaluation sandbox'
+          });
+        };
+
+        return [filterFunc, renderIframeSandbox];
+      };
+
+      // Mock trial data for testing
+      const mockTrials = [
+        {
+          trial_id: 1,
+          study_id: 1,
+          number: 0,
+          state: "Complete",
+          values: [0.1],
+          params: [],
+          intermediate_values: [],
+          user_attrs: [],
+          datetime_start: new Date("2023-01-01T00:00:00Z"),
+          datetime_complete: new Date("2023-01-01T00:01:00Z"),
+          constraints: [],
+        },
+        {
+          trial_id: 2,
+          study_id: 1,
+          number: 1,
+          state: "Complete",
+          values: [0.5],
+          params: [],
+          intermediate_values: [],
+          user_attrs: [],
+          datetime_start: new Date("2023-01-01T00:00:00Z"),
+          datetime_complete: new Date("2023-01-01T00:01:00Z"),
+          constraints: [],
+        },
+        {
+          trial_id: 3,
+          study_id: 1,
+          number: 2,
+          state: "Complete",
+          values: [0.9],
+          params: [],
+          intermediate_values: [],
+          user_attrs: [],
+          datetime_start: new Date("2023-01-01T00:00:00Z"),
+          datetime_complete: new Date("2023-01-01T00:01:00Z"),
+          constraints: [],
+        },
+      ];
+
+      // Test component
+      function TestApp() {
+        const [filterFunc, renderIframe] = useEvalTrialFilter();
+        const [result, setResult] = useState(null);
+        const [error, setError] = useState(null);
+        const [isLoading, setIsLoading] = useState(false);
+
+        const handleFilter = async (filterExpression) => {
+          setIsLoading(true);
+          setError(null);
+          try {
+            const filtered = await filterFunc(mockTrials, filterExpression);
+            setResult(filtered);
+          } catch (err) {
+            setError(err.toString());
+          } finally {
+            setIsLoading(false);
+          }
+        };
+
+        return createElement('div', { style: { padding: '20px' } }, [
+          createElement('h1', { key: 'title' }, 'useEvalTrialFilter Test'),
+          createElement('div', { key: 'iframe-container', id: 'iframe-container' }, renderIframe()),
+          createElement('div', { key: 'controls', style: { margin: '20px 0' } }, [
+            createElement('button', {
+              key: 'test-valid',
+              id: 'test-valid-filter',
+              onClick: () => handleFilter('(trial) => trial.values[0] > 0.3'),
+              disabled: isLoading
+            }, 'Test Valid Filter (> 0.3)'),
+            createElement('button', {
+              key: 'test-invalid',
+              id: 'test-invalid-filter',
+              onClick: () => handleFilter('invalid javascript'),
+              disabled: isLoading,
+              style: { marginLeft: '10px' }
+            }, 'Test Invalid Filter'),
+            createElement('button', {
+              key: 'test-complex',
+              id: 'test-complex-filter',
+              onClick: () => handleFilter('(trial) => trial.trial_id % 2 === 0'),
+              disabled: isLoading,
+              style: { marginLeft: '10px' }
+            }, 'Test Complex Filter (even IDs)'),
+          ]),
+          isLoading && createElement('div', { key: 'loading', id: 'loading' }, 'Loading...'),
+          error && createElement('div', { 
+            key: 'error', 
+            id: 'error-message', 
+            style: { color: 'red', margin: '10px 0' } 
+          }, 'Error: ' + error),
+          result && createElement('div', { key: 'result', id: 'filter-result' }, [
+            createElement('h3', { key: 'result-title' }, 'Filter Result:'),
+            createElement('pre', { 
+              key: 'result-content',
+              style: { background: '#f5f5f5', padding: '10px', borderRadius: '4px' } 
+            }, JSON.stringify(result, null, 2))
+          ])
+        ]);
+      }
+
+      // Render the app
+      const root = createRoot(document.getElementById('root'));
+      root.render(createElement(TestApp));
+    </script>
+  </body>
+</html>
