@@ -12,6 +12,9 @@ jupyterlab/jupyterlab_optuna/vendor/
 # JS
 node_modules/
 pkg/
+tslib/**/test-results/
+tslib/**/playwright-report/
+tslib/**/playwright/.cache/
 
 # VSCode
 vscode/assets/
