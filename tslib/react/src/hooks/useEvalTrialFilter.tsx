@@ -1,30 +1,35 @@
 import { Trial } from "@optuna/types"
 import { ReactNode, useCallback, useEffect, useRef } from "react"
 
-type MessageRequest = {
+type MessageRequest<T> = {
   type: "filter"
-  trials: Trial[]
+  trials: T[]
   filterFuncStr: string
 }
 
-type MessageResponse = {
+type MessageResponse<T> = {
   type: "result"
-  filteredTrials: Trial[]
+  filteredTrials: T[]
   error?: Error
 }
 
-export const useEvalTrialFilter = (): [
-  (trials: Trial[], filterFuncStr: string) => Promise<Trial[]>,
+type TrialFilter<T extends Trial> = (
+  trials: T[],
+  filterFuncStr: string
+) => Promise<T[]>
+
+export const useEvalTrialFilter = <T extends Trial>(): [
+  TrialFilter<T>,
   () => ReactNode,
 ] => {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const pendingPromiseRef = useRef<{
-    resolve: (value: Trial[]) => void
+    resolve: (value: T[]) => void
     reject: (reason?: Error) => void
   } | null>(null)
 
   const filterFunc = useCallback(
-    (trials: Trial[], filterFuncStr: string): Promise<Trial[]> => {
+    (trials: T[], filterFuncStr: string): Promise<T[]> => {
       return new Promise((resolve, reject) => {
         // TODO(c-bata): Support concurrent evaluations
         if (!iframeRef.current || !iframeRef.current.contentWindow) {
@@ -37,7 +42,7 @@ export const useEvalTrialFilter = (): [
 
         pendingPromiseRef.current = { resolve, reject }
 
-        const message: MessageRequest = {
+        const message: MessageRequest<T> = {
           type: "filter",
           trials,
           filterFuncStr,
@@ -55,7 +60,7 @@ export const useEvalTrialFilter = (): [
 
       if (typeof data !== "object" || data.type !== "result") return
 
-      const response = data as MessageResponse
+      const response = data as MessageResponse<T>
 
       if (pendingPromiseRef.current) {
         if (response.error) {
