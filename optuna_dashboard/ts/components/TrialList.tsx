@@ -22,7 +22,8 @@ import ListItemButton from "@mui/material/ListItemButton"
 import ListItemText from "@mui/material/ListItemText"
 import ListSubheader from "@mui/material/ListSubheader"
 import * as Optuna from "@optuna/types"
-import React, { FC, ReactNode, useMemo } from "react"
+import { useEvalTrialFilter } from "@optuna/react"
+import React, { FC, ReactNode, useMemo, useState, useEffect } from "react"
 
 import ListItemIcon from "@mui/material/ListItemIcon"
 import { useVirtualizer } from "@tanstack/react-virtual"
@@ -87,18 +88,33 @@ const useExcludedStates = (query: URLSearchParams): Optuna.TrialState[] => {
 
 const useTrials = (
   studyDetail: StudyDetail | null,
-  excludedStates: Optuna.TrialState[]
+  excludedStates: Optuna.TrialState[],
+  trialFilter: (trials: Trial[], filterFuncStr: string) => Promise<Trial[]>,
+  trialFilterStr: string,
 ): Trial[] => {
-  return useMemo(() => {
+  const [filteredTrials, setFilteredTrials] = useState<Trial[]>([])
+  useEffect(() => {
     let result = studyDetail !== null ? studyDetail.trials : []
-    if (excludedStates.length === 0) {
-      return result
+    if (excludedStates.length !== 0) {
+      excludedStates.forEach((s) => {
+        result = result.filter((t) => t.state !== s)
+      })
     }
-    excludedStates.forEach((s) => {
-      result = result.filter((t) => t.state !== s)
-    })
-    return result
-  }, [studyDetail, excludedStates])
+    console.log("DEBUG")
+    console.log(trialFilterStr)
+    if (trialFilterStr !== "") {
+      trialFilter(result, trialFilterStr).then((v) => {
+        console.log("suceeded")
+        console.dir(v)
+        setFilteredTrials(v)
+      }).catch((error) => {
+        console.error(error)
+      })
+    } else {
+      setFilteredTrials(result)
+    }
+  }, [studyDetail, excludedStates, trialFilter, trialFilterStr])
+  return filteredTrials
 }
 
 const useQueriedTrials = (trials: Trial[], query: URLSearchParams): Trial[] => {
@@ -422,7 +438,9 @@ export const TrialList: FC<{ studyDetail: StudyDetail | null }> = ({
   const query = useQuery()
   const navigate = useNavigate()
   const excludedStates = useExcludedStates(query)
-  const trials = useTrials(studyDetail, excludedStates)
+  const [trialFilterStr, setTrialFilterStr] = useState<string>("")
+  const [trialFilter, renderIframe] = useEvalTrialFilter<Trial>();
+  const trials = useTrials(studyDetail, excludedStates, trialFilter, trialFilterStr)
   const isBestTrial = useIsBestTrial(studyDetail)
   const queried = useQueriedTrials(trials, query)
   const [filterMenuAnchorEl, setFilterMenuAnchorEl] =
@@ -467,6 +485,10 @@ export const TrialList: FC<{ studyDetail: StudyDetail | null }> = ({
             <Typography sx={{ p: theme.spacing(1, 0) }}>
               {trials.length} Trials
             </Typography>
+            <Button onClick={() => {
+              console.log("clicked")
+              setTrialFilterStr("(t) => t.number < 40");
+            }}>Run Filter</Button>
             <Box component="div" sx={{ flexGrow: 1 }} />
             <IconButton
               aria-label="Filter"
@@ -648,6 +670,7 @@ export const TrialList: FC<{ studyDetail: StudyDetail | null }> = ({
               ))}
         </Box>
       </Box>
+      {renderIframe()}
     </Box>
   )
 }
