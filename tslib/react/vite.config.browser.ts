@@ -10,12 +10,10 @@ interface VitestConfig extends UserConfig {
 export default defineConfig({
   plugins: [react()],
   test: {
-    environment: "jsdom",
-    setupFiles: ["./test/vitest_setup.ts", "./test/setup_studies.ts"],
-    // Browser mode configuration
+    // Enable browser mode for iframe and postMessage testing
     browser: {
-      enabled: false, // Will be enabled selectively
-      name: "playwright",
+      enabled: true,
+      name: "chromium",
       provider: "playwright",
       headless: true,
       // Configure browser-specific settings
@@ -23,6 +21,9 @@ export default defineConfig({
         port: 63315,
       },
     },
+    // Include browser-specific test files only
+    include: ["**/*.browser.test.{ts,tsx}"],
+    setupFiles: ["./test/browser_setup.ts"],
   },
   optimizeDeps: {
     exclude: ["@sqlite.org/sqlite-wasm"],
