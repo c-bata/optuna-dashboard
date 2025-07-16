@@ -101,10 +101,12 @@ describe("useEvalTrialFilter Tests", () => {
   })
 
   test("filtering works with valid JavaScript function", async () => {
-    let filterFunc: ((
-      trials: Optuna.Trial[],
-      filterFuncStr: string
-    ) => Promise<Optuna.Trial[]>) | null = null
+    let filterFunc:
+      | ((
+          trials: Optuna.Trial[],
+          filterFuncStr: string
+        ) => Promise<Optuna.Trial[]>)
+      | null = null
 
     const TestWrapper = () => {
       const [filter, renderIframe] = useEvalTrialFilter()
@@ -129,7 +131,9 @@ describe("useEvalTrialFilter Tests", () => {
     const messageEvent = new MessageEvent("message", {
       data: {
         type: "result",
-        filteredTrials: mockTrials.filter((t) => t.values !== undefined && t.values[0] > 0.3),
+        filteredTrials: mockTrials.filter(
+          (t) => t.values !== undefined && t.values[0] > 0.3
+        ),
       },
     })
 
@@ -142,10 +146,12 @@ describe("useEvalTrialFilter Tests", () => {
   })
 
   test("handles JavaScript execution errors", async () => {
-    let filterFunc: ((
-      trials: Optuna.Trial[],
-      filterFuncStr: string
-    ) => Promise<Optuna.Trial[]>) | null = null
+    let filterFunc:
+      | ((
+          trials: Optuna.Trial[],
+          filterFuncStr: string
+        ) => Promise<Optuna.Trial[]>)
+      | null = null
 
     const TestWrapper = () => {
       const [filter, renderIframe] = useEvalTrialFilter()
@@ -176,10 +182,12 @@ describe("useEvalTrialFilter Tests", () => {
   })
 
   test("rejects when iframe is not ready", async () => {
-    let filterFunc: ((
-      trials: Optuna.Trial[],
-      filterFuncStr: string
-    ) => Promise<Optuna.Trial[]>) | null = null
+    let filterFunc:
+      | ((
+          trials: Optuna.Trial[],
+          filterFuncStr: string
+        ) => Promise<Optuna.Trial[]>)
+      | null = null
 
     const TestWrapper = () => {
       const [filter] = useEvalTrialFilter()

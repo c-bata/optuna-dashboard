@@ -20,6 +20,7 @@ export default defineConfig({
       api: {
         port: 63315,
       },
+      isolate: true,
     },
     // Include browser-specific test files only
     include: ["**/*.browser.test.{ts,tsx}"],

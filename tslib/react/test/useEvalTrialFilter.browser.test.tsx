@@ -1,8 +1,14 @@
 import * as Optuna from "@optuna/types"
-import { render, waitFor, screen, fireEvent } from "@testing-library/react"
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react"
+import { FC, useState } from "react"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { useEvalTrialFilter } from "../src/hooks/useEvalTrialFilter"
-import { FC, useState } from "react"
 
 // Import matchers for custom assertions
 import "@testing-library/jest-dom"
@@ -10,9 +16,11 @@ import "@testing-library/jest-dom"
 describe("useEvalTrialFilter Browser Tests", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    cleanup()
   })
 
   afterEach(() => {
+    cleanup()
     vi.restoreAllMocks()
   })
 
@@ -115,21 +123,21 @@ describe("useEvalTrialFilter Browser Tests", () => {
         {renderIframe()}
         <button
           data-testid="test-valid-filter"
-          onClick={() => handleFilter('(trial) => trial.values[0] > 0.3')}
+          onClick={() => handleFilter("(trial) => trial.values[0] > 0.3")}
           disabled={isLoading}
         >
           Test Valid Filter
         </button>
         <button
           data-testid="test-invalid-filter"
-          onClick={() => handleFilter('invalid javascript')}
+          onClick={() => handleFilter("invalid javascript")}
           disabled={isLoading}
         >
           Test Invalid Filter
         </button>
         <button
           data-testid="test-complex-filter"
-          onClick={() => handleFilter('(trial) => trial.trial_id % 2 === 0')}
+          onClick={() => handleFilter("(trial) => trial.trial_id % 2 === 0")}
           disabled={isLoading}
         >
           Test Complex Filter
@@ -151,7 +159,7 @@ describe("useEvalTrialFilter Browser Tests", () => {
     render(<TestFilterComponent />)
 
     // Find the iframe element
-    const iframe = document.querySelector('iframe[id*="eval-trial-filter"]')
+    const iframe = document.querySelector('iframe[sandbox="allow-scripts"]')
     expect(iframe).toBeInTheDocument()
     expect(iframe).toHaveAttribute("sandbox", "allow-scripts")
     expect(iframe).toHaveStyle("display: none")
@@ -169,7 +177,9 @@ describe("useEvalTrialFilter Browser Tests", () => {
 
     // Wait for iframe to be ready
     await waitFor(() => {
-      expect(document.querySelector('iframe[id*="eval-trial-filter"]')).toBeInTheDocument()
+      expect(
+        document.querySelector('iframe[sandbox="allow-scripts"]')
+      ).toBeInTheDocument()
     })
 
     // Click the valid filter button
@@ -204,7 +214,9 @@ describe("useEvalTrialFilter Browser Tests", () => {
 
     // Wait for iframe to be ready
     await waitFor(() => {
-      expect(document.querySelector('iframe[id*="eval-trial-filter"]')).toBeInTheDocument()
+      expect(
+        document.querySelector('iframe[sandbox="allow-scripts"]')
+      ).toBeInTheDocument()
     })
 
     // Click the invalid filter button
@@ -234,7 +246,9 @@ describe("useEvalTrialFilter Browser Tests", () => {
 
     // Wait for iframe to be ready
     await waitFor(() => {
-      expect(document.querySelector('iframe[id*="eval-trial-filter"]')).toBeInTheDocument()
+      expect(
+        document.querySelector('iframe[sandbox="allow-scripts"]')
+      ).toBeInTheDocument()
     })
 
     // Click the complex filter button (even trial IDs)
@@ -268,25 +282,29 @@ describe("useEvalTrialFilter Browser Tests", () => {
 
     // Wait for iframe to be ready
     await waitFor(() => {
-      expect(document.querySelector('iframe[id*="eval-trial-filter"]')).toBeInTheDocument()
+      expect(
+        document.querySelector('iframe[sandbox="allow-scripts"]')
+      ).toBeInTheDocument()
     })
 
     // Monitor postMessage events
     const messageEvents: MessageEvent[] = []
     const originalAddEventListener = window.addEventListener
-    window.addEventListener = vi.fn((type: string, listener: any, options?: any) => {
-      if (type === 'message') {
-        const wrappedListener = (event: Event) => {
-          if (event instanceof MessageEvent) {
-            messageEvents.push(event)
+    window.addEventListener = vi.fn(
+      (type: string, listener: any, options?: any) => {
+        if (type === "message") {
+          const wrappedListener = (event: Event) => {
+            if (event instanceof MessageEvent) {
+              messageEvents.push(event)
+            }
+            listener(event)
           }
-          listener(event)
+          originalAddEventListener.call(window, type, wrappedListener, options)
+        } else {
+          originalAddEventListener.call(window, type, listener, options)
         }
-        originalAddEventListener.call(window, type, wrappedListener, options)
-      } else {
-        originalAddEventListener.call(window, type, listener, options)
       }
-    })
+    )
 
     // Execute a filter
     const validFilterButton = screen.getByTestId("test-valid-filter")
@@ -316,13 +334,15 @@ describe("useEvalTrialFilter Browser Tests", () => {
 
     // Wait for iframe to be ready
     await waitFor(() => {
-      expect(document.querySelector('iframe[id*="eval-trial-filter"]')).toBeInTheDocument()
+      expect(
+        document.querySelector('iframe[sandbox="allow-scripts"]')
+      ).toBeInTheDocument()
     })
 
     // Try to execute a filter that attempts to access parent variable
     // This should fail because the iframe is sandboxed
     const testButton = screen.getByTestId("test-invalid-filter")
-    
+
     // Replace the onclick to test sandbox isolation
     fireEvent.click(testButton)
 

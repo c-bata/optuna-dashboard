@@ -12,6 +12,7 @@ jupyterlab/jupyterlab_optuna/vendor/
 # JS
 node_modules/
 pkg/
+tslib/**/__screenshots__
 
 # VSCode
 vscode/assets/
