@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join
 from optuna_dashboard.artifact._backend_to_store import to_artifact_store
+from optuna_dashboard._storage_url import guess_storage_from_url
 import tornado
 
 
@@ -56,7 +57,7 @@ class RouteHandler(APIHandler):
 
         with threading_lock:
             _dashboard_app = wsgi(
-                storage=storage_url,
+                storage=guess_storage_from_url(storage_url),
                 artifact_store=artifact_store,
                 jupyterlab_extension_context=JupyterLabExtensionContext(base_url=_base_url),
             )
