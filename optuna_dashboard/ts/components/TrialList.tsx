@@ -22,7 +22,7 @@ import ListItemButton from "@mui/material/ListItemButton"
 import ListItemText from "@mui/material/ListItemText"
 import ListSubheader from "@mui/material/ListSubheader"
 import * as Optuna from "@optuna/types"
-import React, { FC, ReactNode, useMemo } from "react"
+import React, { FC, ReactNode, useMemo, useState, useEffect } from "react"
 
 import ListItemIcon from "@mui/material/ListItemIcon"
 import { useVirtualizer } from "@tanstack/react-virtual"
@@ -31,6 +31,7 @@ import { useNavigate } from "react-router-dom"
 import { FormWidgets, StudyDetail, Trial } from "ts/types/optuna"
 import { actionCreator } from "../action"
 import { useConstants } from "../constantsProvider"
+import { useTrialFilterQuery } from "../hooks/useTrialFilterQuery"
 import { artifactIsAvailable, trialListDurationTimeUnitState } from "../state"
 import { useQuery } from "../urlQuery"
 import { ArtifactCards } from "./Artifact/ArtifactCards"
@@ -87,18 +88,33 @@ const useExcludedStates = (query: URLSearchParams): Optuna.TrialState[] => {
 
 const useTrials = (
   studyDetail: StudyDetail | null,
-  excludedStates: Optuna.TrialState[]
+  excludedStates: Optuna.TrialState[],
+  trialFilter: (trials: Trial[], query: string) => Promise<Trial[]>,
+  trialFilterQuery: string,
 ): Trial[] => {
-  return useMemo(() => {
+  const [filteredTrials, setFilteredTrials] = useState<Trial[]>([])
+
+  useEffect(() => {
     let result = studyDetail !== null ? studyDetail.trials : []
-    if (excludedStates.length === 0) {
-      return result
+    if (excludedStates.length !== 0) {
+      excludedStates.forEach((s) => {
+        result = result.filter((t) => t.state !== s)
+      })
     }
-    excludedStates.forEach((s) => {
-      result = result.filter((t) => t.state !== s)
-    })
-    return result
-  }, [studyDetail, excludedStates])
+    console.log(trialFilterQuery)
+    if (trialFilterQuery !== "") {
+      trialFilter(result, trialFilterQuery).then((v) => {
+        console.log(`DEBUG: [success] ${trialFilterQuery}`)
+        setFilteredTrials(v)
+      }).catch((error) => {
+        console.log(`DEBUG: [fail] ${trialFilterQuery}`)
+        console.error(error)
+      })
+    } else {
+      setFilteredTrials(result)
+    }
+  }, [studyDetail, excludedStates, trialFilter, trialFilterQuery])
+  return filteredTrials
 }
 
 const useQueriedTrials = (trials: Trial[], query: URLSearchParams): Trial[] => {
@@ -422,7 +438,9 @@ export const TrialList: FC<{ studyDetail: StudyDetail | null }> = ({
   const query = useQuery()
   const navigate = useNavigate()
   const excludedStates = useExcludedStates(query)
-  const trials = useTrials(studyDetail, excludedStates)
+  const [trialFilterQuery, setTrialFilterQuery] = useState<string>("")
+  const [trialFilter, renderIframe] = useTrialFilterQuery(5);
+  const trials = useTrials(studyDetail, excludedStates, trialFilter, trialFilterQuery)
   const isBestTrial = useIsBestTrial(studyDetail)
   const queried = useQueriedTrials(trials, query)
   const [filterMenuAnchorEl, setFilterMenuAnchorEl] =
@@ -467,6 +485,10 @@ export const TrialList: FC<{ studyDetail: StudyDetail | null }> = ({
             <Typography sx={{ p: theme.spacing(1, 0) }}>
               {trials.length} Trials
             </Typography>
+            <Button onClick={() => {
+              console.log("clicked")
+              setTrialFilterQuery("number < 40");
+            }}>Run Filter</Button>
             <Box component="div" sx={{ flexGrow: 1 }} />
             <IconButton
               aria-label="Filter"
@@ -648,6 +670,7 @@ export const TrialList: FC<{ studyDetail: StudyDetail | null }> = ({
               ))}
         </Box>
       </Box>
+      { renderIframe() }
     </Box>
   )
 }
