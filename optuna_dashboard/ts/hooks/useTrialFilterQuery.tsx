@@ -2,9 +2,10 @@ import { useEvalTrialFilter } from "@optuna/react"
 import { isAxiosError } from "axios"
 import { atom, useAtom } from "jotai"
 import { useSnackbar } from "notistack"
-import { ReactNode, useCallback } from "react"
+import React, { ReactNode, useCallback } from "react"
 import { useAPIClient } from "../apiClientProvider"
 import { Trial } from "../types/optuna"
+import { useTrialFilterEvalDialog } from "./useTrialFilterEvalDialog"
 
 // Cache atom for API responses: userQuery -> trial_filtering_func_str
 const trialFilterCacheAtom = atom<Map<string, string>>(new Map())
@@ -19,6 +20,7 @@ export const useTrialFilterQuery = (
   const { enqueueSnackbar } = useSnackbar()
   const [filterByJSFuncStr, renderIframe] = useEvalTrialFilter<Trial>()
   const [cache, setCache] = useAtom(trialFilterCacheAtom)
+  const [showConfirmationDialog, renderDialog] = useTrialFilterEvalDialog()
 
   const filterByUserQuery = useCallback(
     async (trials: Trial[], userQuery: string): Promise<Trial[]> => {
@@ -63,7 +65,15 @@ export const useTrialFilterQuery = (
           throw apiError
         }
 
-        // TODO(c-bata): Show the confirmation dialog here.
+        const userConfirmed = await showConfirmationDialog(
+          filterFuncStr,
+          userQuery,
+          trials.length
+        )
+        if (!userConfirmed) {
+          throw new Error("User rejected the execution")
+        }
+
         try {
           const result = await filterByJSFuncStr(trials, filterFuncStr)
           // Cache the successful function string
@@ -96,5 +106,15 @@ export const useTrialFilterQuery = (
     },
     [apiClient, enqueueSnackbar, filterByJSFuncStr, nRetry, cache, setCache]
   )
-  return [filterByUserQuery, renderIframe]
+
+  const renderDialogAndIframe = () => {
+    return (
+      <>
+        {renderDialog()}
+        {renderIframe()}
+      </>
+    )
+  }
+
+  return [filterByUserQuery, renderDialogAndIframe]
 }
