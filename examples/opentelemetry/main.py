@@ -9,7 +9,7 @@ from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.resources import Resource
 
 import optuna_dashboard
-from optuna_dashboard.opentelemetry import OpenTelemetryMiddleware
+from optuna_dashboard.opentelemetry import OptunaDashboardInstrumentor
 
 
 HOSTNAME = "0.0.0.0"
@@ -28,8 +28,8 @@ def main() -> None:
     ]
 
     # If you want to see metrics in the console, uncomment the following line
-    # from opentelemetry.sdk.metrics.export import ConsoleMetricExporter
-    # readers.append(PeriodicExportingMetricReader(ConsoleMetricExporter()))
+    from opentelemetry.sdk.metrics.export import ConsoleMetricExporter
+    readers.append(PeriodicExportingMetricReader(ConsoleMetricExporter()))
 
     # If you want to use PrometheusMetricReader, uncomment the following lines
     # from prometheus_client import start_http_server
@@ -41,13 +41,8 @@ def main() -> None:
     metrics.set_meter_provider(MeterProvider(resource=resource, metric_readers=readers))
 
     # Start Optuna Dashboard with opentelemetry-instrumentation-wsgi middleware
-    app = optuna_dashboard.wsgi(storage=STORAGE_URL)
-    app = OpenTelemetryMiddleware(app)
-
-    print("Starting Optuna Dashboard with Prometheus metrics...")
-    print("Dashboard: http://localhost:8080")
-    with wsgiref.simple_server.make_server(HOSTNAME, 8080, app) as httpd:
-        httpd.serve_forever()
+    OptunaDashboardInstrumentor().instrument(meter_provider=metrics.get_meter_provider())
+    optuna_dashboard.run_server(storage=STORAGE_URL, host=HOSTNAME)
 
 
 if __name__ == "__main__":
