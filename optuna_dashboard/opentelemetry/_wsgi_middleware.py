@@ -7,6 +7,8 @@ from bottle import Bottle
 from opentelemetry import metrics
 from opentelemetry.instrumentation.wsgi import OpenTelemetryMiddleware as OtelWsgiMiddleware
 
+import optuna_dashboard
+
 
 if typing.TYPE_CHECKING:
     from typing import Iterable
@@ -30,22 +32,20 @@ class OpenTelemetryMiddleware:
             meter_provider: Optional meter provider to use. If omitted, the current globally configured one is used.
         """
         self._app = OtelWsgiMiddleware(app, meter_provider=meter_provider)
-        self._meter_provider = meter_provider
+        self._meter = metrics.get_meter(
+            "optuna_dashboard",
+            optuna_dashboard.__version__,
+            meter_provider,
+        )
 
         self._setup_metrics_instrumentation()
 
     def _setup_metrics_instrumentation(self) -> None:
         """Setup OpenTelemetry metrics instrumentation for optuna-dashboard."""
+        from optuna_dashboard import _app
         from optuna_dashboard import _storage
-        from optuna_dashboard import __version__
 
-        meter = metrics.get_meter(
-            "optuna_dashboard",
-            __version__,
-            self._meter_provider,
-        )
-
-        trials_histogram = meter.create_histogram(
+        trials_histogram = self._meter.create_histogram(
             name="optuna_dashboard_trials_total",
             unit="trials",
             description="Number of trials retrieved by get_trials function",
@@ -69,6 +69,9 @@ class OpenTelemetryMiddleware:
             )
             return trials
         _storage.get_trials = instrumented_get_trials
+
+        # Also patch the imported reference in _app module
+        _app.get_trials = instrumented_get_trials
 
     def __call__(self, env: WSGIEnvironment, start_response: StartResponse) -> Iterable[bytes]:
         return self._app(env, start_response)
