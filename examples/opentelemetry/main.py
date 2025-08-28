@@ -5,7 +5,6 @@ import wsgiref.simple_server
 from opentelemetry import metrics
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
-from opentelemetry.sdk.metrics.export import ConsoleMetricExporter
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.resources import Resource
 
@@ -29,6 +28,7 @@ def main() -> None:
     ]
 
     # If you want to see metrics in the console, uncomment the following line
+    # from opentelemetry.sdk.metrics.export import ConsoleMetricExporter
     # readers.append(PeriodicExportingMetricReader(ConsoleMetricExporter()))
 
     # If you want to use PrometheusMetricReader, uncomment the following lines
