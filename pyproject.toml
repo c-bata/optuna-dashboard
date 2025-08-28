@@ -59,6 +59,11 @@ torch = [
   { index = "pytorch-cpu" },
 ]
 
+[tool.uv.workspace]
+members = [
+    "examples/opentelemetry",
+]
+
 [project.scripts]
 optuna-dashboard = "optuna_dashboard._cli:main"
 
