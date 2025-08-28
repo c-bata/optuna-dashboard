@@ -3,7 +3,6 @@ from __future__ import annotations
 import wsgiref.simple_server
 
 from opentelemetry import metrics
-from opentelemetry.instrumentation.wsgi import OpenTelemetryMiddleware
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.sdk.metrics.export import ConsoleMetricExporter
@@ -11,17 +10,19 @@ from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.resources import Resource
 
 import optuna_dashboard
+from optuna_dashboard.opentelemetry import OpenTelemetryMiddleware
 
 
 HOSTNAME = "0.0.0.0"
 STORAGE_URL = "sqlite:///db.sqlite3"
+OTEL_COLLECTOR_ENDPOINT = "http://localhost:4318/v1/metrics"
 
 
 def main() -> None:
     resource = Resource.create({"service.name": "optuna-dashboard"})
     readers = [
         PeriodicExportingMetricReader(
-            OTLPMetricExporter(endpoint="http://localhost:4318/v1/metrics"),
+            OTLPMetricExporter(endpoint=OTEL_COLLECTOR_ENDPOINT),
             export_interval_millis=1000,
             export_timeout_millis=5000,
         ),

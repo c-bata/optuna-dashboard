@@ -39,6 +39,10 @@ preferential = [
     "torch",
     "botorch",
 ]
+opentelemetry = [
+  "opentelemetry-api ~= 1.12",
+  "opentelemetry-instrumentation-wsgi",
+]
 # This field is referrenced by .readthedocs.yaml.
 docs = [
     "boto3",
