@@ -12,7 +12,7 @@ import optuna_dashboard
 from optuna_dashboard.opentelemetry import OptunaDashboardInstrumentor
 
 
-HOSTNAME = "0.0.0.0"
+HOSTNAME = "127.0.0.1"
 STORAGE_URL = "sqlite:///db.sqlite3"
 OTEL_COLLECTOR_ENDPOINT = "http://localhost:4318/v1/metrics"
 
@@ -29,13 +29,14 @@ def main() -> None:
 
     # If you want to see metrics in the console, uncomment the following line
     from opentelemetry.sdk.metrics.export import ConsoleMetricExporter
+
     readers.append(PeriodicExportingMetricReader(ConsoleMetricExporter()))
 
     # If you want to use PrometheusMetricReader, uncomment the following lines
     # from prometheus_client import start_http_server
     # from opentelemetry.exporter.prometheus import PrometheusMetricReader
     # print("Metrics endpoint: http://localhost:9464/metrics")
-    # start_http_server(port=9464, addr="0.0.0.0")
+    # start_http_server(port=9464, addr="127.0.0.1")
     # readers.append(PrometheusMetricReader("optuna_dashboard"))
 
     metrics.set_meter_provider(MeterProvider(resource=resource, metric_readers=readers))
