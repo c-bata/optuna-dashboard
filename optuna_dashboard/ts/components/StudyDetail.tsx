@@ -9,17 +9,12 @@ import {
   useTheme,
 } from "@mui/material"
 import Grid from "@mui/material/Grid"
-import { useAtomValue } from "jotai"
 import React, { FC, useEffect, useMemo } from "react"
 import { Link, useParams } from "react-router-dom"
 
 import { actionCreator } from "../action"
 import { useConstants } from "../constantsProvider"
-import {
-  reloadIntervalState,
-  useStudyIsPreferential,
-  useStudyName,
-} from "../state"
+import { useStudyIsPreferential, useStudyName } from "../state"
 import { AppDrawer, PageId } from "./AppDrawer"
 import { Contour } from "./GraphContour"
 import { GraphEdf } from "./GraphEdf"
@@ -35,7 +30,7 @@ import { StudyHistory } from "./StudyHistory"
 import { TrialList } from "./TrialList"
 import { TrialSelection } from "./TrialSelection"
 import { TrialTable } from "./TrialTable"
-import { studyDetailStateFamily } from "../state"
+import { useLatestStudyDetail } from "../hooks/useLatestStudyDetail"
 
 export const useURLVars = (): number => {
   const { studyId } = useParams<{ studyId: string }>()
@@ -56,44 +51,16 @@ export const StudyDetail: FC<{
   const theme = useTheme()
   const action = actionCreator()
   const studyId = useURLVars()
-  const studyDetail = useAtomValue(studyDetailStateFamily(studyId))
-  const reloadInterval = useAtomValue(reloadIntervalState)
   const studyName = useStudyName(studyId)
   const isPreferential = useStudyIsPreferential(studyId)
+  const studyDetail = useLatestStudyDetail(studyId)
 
   const title =
     studyName !== null ? `${studyName} (id=${studyId})` : `Study #${studyId}`
 
   useEffect(() => {
-    action.updateStudyDetail(studyId)
     action.updateAPIMeta()
   }, [])
-
-  useEffect(() => {
-    if (reloadInterval < 0) {
-      return
-    }
-    const nTrials = studyDetail ? studyDetail.trials.length : 0
-    let interval = reloadInterval * 1000
-
-    // For Human-in-the-loop Optimization, the interval is set to 2 seconds
-    // when the number of trials is small, and the page is "trialList" or top page of preferential.
-    if (
-      (!isPreferential && page === "trialList") ||
-      (isPreferential && page === "top")
-    ) {
-      if (nTrials < 100) {
-        interval = 2000
-      } else if (nTrials < 500) {
-        interval = 5000
-      }
-    }
-
-    const intervalId = setInterval(() => {
-      action.updateStudyDetail(studyId)
-    }, interval)
-    return () => clearInterval(intervalId)
-  }, [reloadInterval, studyDetail, page])
 
   let content = null
   if (page === "top") {

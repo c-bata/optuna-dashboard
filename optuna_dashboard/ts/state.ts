@@ -31,8 +31,6 @@ export const plotlypyIsAvailableState = atom<boolean>(false)
 
 export const studySummariesLoadingState = atom<boolean>(false)
 
-export const studyDetailLoadingState = atom<Record<number, boolean>>({})
-
 export const trialListDurationTimeUnitState = atom<"ms" | "s" | "min" | "h">(
   "ms"
 )
