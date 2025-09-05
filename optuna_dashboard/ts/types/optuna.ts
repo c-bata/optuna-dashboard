@@ -141,10 +141,6 @@ export type StudyDetail = {
   skipped_trial_numbers: number[]
 }
 
-export type StudyDetails = {
-  [study_id: string]: StudyDetail
-}
-
 export type PreferenceHistory = {
   id: string
   candidates: number[]

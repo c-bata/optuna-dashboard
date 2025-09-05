@@ -22,10 +22,11 @@ import ReactFlow, {
   Handle,
 } from "reactflow"
 import "reactflow/dist/style.css"
+import { useAtomValue } from "jotai"
 
 import { StudyDetail, Trial } from "ts/types/optuna"
 import { useArtifactBaseUrlPath } from "../../hooks/useArtifactBaseUrlPath"
-import { useStudyDetailValue } from "../../state"
+import { studyDetailStateFamily } from "../../state"
 import { getTrialArtifactUrlPath } from "../Artifact/ArtifactCards"
 import { PreferentialOutputComponent } from "./PreferentialOutputComponent"
 
@@ -45,7 +46,7 @@ const GraphNode: FC<NodeProps<NodeData>> = ({ data, isConnectable }) => {
   if (trial === undefined) {
     return null
   }
-  const studyDetail = useStudyDetailValue(trial.study_id)
+  const studyDetail = useAtomValue(studyDetailStateFamily(trial.study_id))
   const componentType = studyDetail?.feedback_component_type
   if (componentType === undefined) {
     return null

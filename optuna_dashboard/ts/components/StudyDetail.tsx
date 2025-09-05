@@ -17,7 +17,6 @@ import { actionCreator } from "../action"
 import { useConstants } from "../constantsProvider"
 import {
   reloadIntervalState,
-  useStudyDetailValue,
   useStudyIsPreferential,
   useStudyName,
 } from "../state"
@@ -36,6 +35,7 @@ import { StudyHistory } from "./StudyHistory"
 import { TrialList } from "./TrialList"
 import { TrialSelection } from "./TrialSelection"
 import { TrialTable } from "./TrialTable"
+import { studyDetailStateFamily } from "../state"
 
 export const useURLVars = (): number => {
   const { studyId } = useParams<{ studyId: string }>()
@@ -56,7 +56,7 @@ export const StudyDetail: FC<{
   const theme = useTheme()
   const action = actionCreator()
   const studyId = useURLVars()
-  const studyDetail = useStudyDetailValue(studyId)
+  const studyDetail = useAtomValue(studyDetailStateFamily(studyId))
   const reloadInterval = useAtomValue(reloadIntervalState)
   const studyName = useStudyName(studyId)
   const isPreferential = useStudyIsPreferential(studyId)

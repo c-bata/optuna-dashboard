@@ -10,16 +10,17 @@ import Grid from "@mui/material/Grid"
 import { DataGrid } from "@optuna/react"
 import * as Optuna from "@optuna/types"
 import React, { FC } from "react"
-import { useStudyDetailValue, useStudySummaryValue } from "../../state"
+import { studyDetailStateFamily, useStudySummaryValue } from "../../state"
 import { BestTrialsCard } from "../BestTrialsCard"
 import { Contour } from "../GraphContour"
+import { useAtomValue } from "jotai"
 
 import { ColumnDef, createColumnHelper } from "@tanstack/react-table"
 
 export const PreferentialAnalytics: FC<{ studyId: number }> = ({ studyId }) => {
   const theme = useTheme()
   const studySummary = useStudySummaryValue(studyId)
-  const studyDetail = useStudyDetailValue(studyId)
+  const studyDetail = useAtomValue(studyDetailStateFamily(studyId))
 
   const userAttrs = studySummary?.user_attrs || studyDetail?.user_attrs || []
   const columnHelper = createColumnHelper<Optuna.Attribute>()

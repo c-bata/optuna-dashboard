@@ -15,7 +15,7 @@ import { useAtomValue } from "jotai"
 import React, { FC, useState } from "react"
 import { Trial } from "ts/types/optuna"
 import {
-  useStudyDetailValue,
+  studyDetailStateFamily,
   useStudyDirections,
   useStudySummaryValue,
 } from "../state"
@@ -35,7 +35,7 @@ export const StudyHistory: FC<{ studyId: number }> = ({ studyId }) => {
   const theme = useTheme()
   const directions = useStudyDirections(studyId)
   const studySummary = useStudySummaryValue(studyId)
-  const studyDetail = useStudyDetailValue(studyId)
+  const studyDetail = useAtomValue(studyDetailStateFamily(studyId))
   const [logScale, setLogScale] = useState<boolean>(false)
   const [includePruned, setIncludePruned] = useState<boolean>(true)
   const artifactEnabled = useAtomValue(artifactIsAvailable)

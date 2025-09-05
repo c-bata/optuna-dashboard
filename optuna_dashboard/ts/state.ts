@@ -1,18 +1,18 @@
 import { DarkColorTemplates, LightColorTemplates } from "@optuna/react"
 import * as Optuna from "@optuna/types"
 import { atom, useAtomValue } from "jotai"
+import { atomFamily } from "jotai/utils"
 import { useLocalStorage } from "usehooks-ts"
 import {
   Artifact,
   PlotlyColorTheme,
   StudyDetail,
-  StudyDetails,
   StudySummary,
 } from "./types/optuna"
 
 export const studySummariesState = atom<StudySummary[]>([])
 
-export const studyDetailsState = atom<StudyDetails>({})
+export const studyDetailStateFamily = atomFamily((studyId: number) => atom<StudyDetail | null>(null))
 
 export const trialsUpdatingState = atom<{ [trialId: string]: boolean }>({})
 
@@ -52,11 +52,6 @@ export const usePlotlyColorThemeState = () => {
   })
 }
 
-export const useStudyDetailValue = (studyId: number): StudyDetail | null => {
-  const studyDetails = useAtomValue(studyDetailsState)
-  return studyDetails[studyId] || null
-}
-
 export const useStudySummaryValue = (studyId: number): StudySummary | null => {
   const studySummaries = useAtomValue(studySummariesState)
   return studySummaries.find((s) => s.study_id === studyId) || null
@@ -70,25 +65,25 @@ export const useTrialUpdatingValue = (trialId: number): boolean => {
 export const useStudyDirections = (
   studyId: number
 ): Optuna.StudyDirection[] | null => {
-  const studyDetail = useStudyDetailValue(studyId)
+  const studyDetail = useAtomValue(studyDetailStateFamily(studyId))
   const studySummary = useStudySummaryValue(studyId)
   return studyDetail?.directions || studySummary?.directions || null
 }
 
 export const useStudyIsPreferential = (studyId: number): boolean | null => {
-  const studyDetail = useStudyDetailValue(studyId)
+  const studyDetail = useAtomValue(studyDetailStateFamily(studyId))
   const studySummary = useStudySummaryValue(studyId)
   return studyDetail?.is_preferential || studySummary?.is_preferential || null
 }
 
 export const useStudyName = (studyId: number): string | null => {
-  const studyDetail = useStudyDetailValue(studyId)
+  const studyDetail = useAtomValue(studyDetailStateFamily(studyId))
   const studySummary = useStudySummaryValue(studyId)
   return studyDetail?.name || studySummary?.study_name || null
 }
 
 export const useArtifacts = (studyId: number, trialId: number): Artifact[] => {
-  const study = useStudyDetailValue(studyId)
+  const study = useAtomValue(studyDetailStateFamily(studyId))
   const trial = study?.trials.find((t) => t.trial_id === trialId)
   if (trial === undefined) {
     return []

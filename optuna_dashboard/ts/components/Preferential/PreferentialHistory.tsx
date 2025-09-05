@@ -14,15 +14,16 @@ import IconButton from "@mui/material/IconButton"
 import Modal from "@mui/material/Modal"
 import { red } from "@mui/material/colors"
 import React, { FC, useState } from "react"
+import { useAtomValue } from "jotai"
 
 import { PreferenceHistory, StudyDetail, Trial } from "ts/types/optuna"
 import { actionCreator } from "../../action"
 import { formatDate } from "../../dateUtil"
 import { useArtifactBaseUrlPath } from "../../hooks/useArtifactBaseUrlPath"
-import { useStudyDetailValue } from "../../state"
 import { getTrialArtifactUrlPath } from "../Artifact/ArtifactCards"
 import { TrialListDetail } from "../TrialList"
 import { PreferentialOutputComponent } from "./PreferentialOutputComponent"
+import { studyDetailStateFamily } from "../../state"
 
 type TrialType = "worst" | "none"
 
@@ -33,7 +34,7 @@ const CandidateTrial: FC<{
   const theme = useTheme()
   const trialWidth = 300
   const trialHeight = 300
-  const studyDetail = useStudyDetailValue(trial.study_id)
+  const studyDetail = useAtomValue(studyDetailStateFamily(trial.study_id))
   const artifactBaseUrl = useArtifactBaseUrlPath()
   const [detailShown, setDetailShown] = useState(false)
 
