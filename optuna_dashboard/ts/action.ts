@@ -9,8 +9,6 @@ import {
   llmIsAvailable,
   plotlypyIsAvailableState,
   reloadIntervalState,
-  studyDetailLoadingState,
-  studyDetailsState,
   studySummariesLoadingState,
   studySummariesState,
   trialsUpdatingState,
@@ -29,7 +27,6 @@ export const actionCreator = () => {
   const { apiClient } = useAPIClient()
   const { enqueueSnackbar } = useSnackbar()
   const [studySummaries, setStudySummaries] = useAtom(studySummariesState)
-  const [studyDetails, setStudyDetails] = useAtom(studyDetailsState)
   const setReloadInterval = useSetAtom(reloadIntervalState)
   const setUploading = useSetAtom(isFileUploading)
   const setTrialsUpdating = useSetAtom(trialsUpdatingState)
@@ -37,9 +34,6 @@ export const actionCreator = () => {
   const setLLMIsAvailable = useSetAtom(llmIsAvailable)
   const setPlotlypyIsAvailable = useSetAtom(plotlypyIsAvailableState)
   const setStudySummariesLoading = useSetAtom(studySummariesLoadingState)
-  const [studyDetailLoading, setStudyDetailLoading] = useAtom(
-    studyDetailLoadingState
-  )
 
   const setStudyDetailState = (studyId: number, study: StudyDetail) => {
     setStudyDetails((prevVal) => {
@@ -218,43 +212,6 @@ export const actionCreator = () => {
         enqueueSnackbar(`Failed to fetch study list.`, {
           variant: "error",
         })
-        console.log(err)
-      })
-  }
-
-  const updateStudyDetail = (studyId: number) => {
-    if (studyDetailLoading[studyId]) {
-      return
-    }
-    setStudyDetailLoading({ ...studyDetailLoading, [studyId]: true })
-    let nLocalFixedTrials = 0
-    if (studyId in studyDetails) {
-      const currentTrials = studyDetails[studyId].trials
-      const firstUpdatable = currentTrials.findIndex((trial) =>
-        ["Running", "Waiting"].includes(trial.state)
-      )
-      nLocalFixedTrials =
-        firstUpdatable === -1 ? currentTrials.length : firstUpdatable
-    }
-    apiClient
-      .getStudyDetail(studyId, nLocalFixedTrials)
-      .then((study) => {
-        setStudyDetailLoading({ ...studyDetailLoading, [studyId]: false })
-        const currentFixedTrials =
-          studyId in studyDetails
-            ? studyDetails[studyId].trials.slice(0, nLocalFixedTrials)
-            : []
-        study.trials = currentFixedTrials.concat(study.trials)
-        setStudyDetailState(studyId, study)
-      })
-      .catch((err) => {
-        setStudyDetailLoading({ ...studyDetailLoading, [studyId]: false })
-        const reason = err.response?.data.reason
-        if (reason !== undefined) {
-          enqueueSnackbar(`Failed to fetch study (reason=${reason})`, {
-            variant: "error",
-          })
-        }
         console.log(err)
       })
   }
@@ -700,7 +657,6 @@ export const actionCreator = () => {
 
   return {
     updateAPIMeta,
-    updateStudyDetail,
     updateStudySummaries,
     createNewStudy,
     deleteStudy,
