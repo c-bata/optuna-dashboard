@@ -354,56 +354,31 @@ export const AppDrawer: FC<{
               </ListItemButton>
             </ListItem>
             <ListItem
-              key="TrialTable"
+              key="TrialSelection"
               disablePadding
               sx={styleListItem}
-              title="Trials (Table)"
+              title="Trials (Selection)"
             >
               <ListItemButton
                 component={Link}
-                to={`${url_prefix}/studies/${studyId}/trialTable`}
+                to={`${url_prefix}/studies/${studyId}/trialSelection`}
                 sx={styleListItemButton}
                 selected={
                   matchPath(
-                    `${url_prefix}/studies/:studyId/trialTable`,
+                    `${url_prefix}/studies/:studyId/trialsSelection`,
                     pathname
                   ) !== null
                 }
               >
                 <ListItemIcon sx={styleListItemIcon}>
-                  <TableViewIcon />
+                  <RuleIcon />
                 </ListItemIcon>
-                <ListItemText primary="Trials (Table)" sx={styleListItemText} />
+                <ListItemText
+                  primary="Trials (Selection)"
+                  sx={styleListItemText}
+                />
               </ListItemButton>
             </ListItem>
-            {showExperimentalFeatures && (
-              <ListItem
-                key="TrialSelection"
-                disablePadding
-                sx={styleListItem}
-                title="Trials (Selection)"
-              >
-                <ListItemButton
-                  component={Link}
-                  to={`${url_prefix}/studies/${studyId}/trialSelection`}
-                  sx={styleListItemButton}
-                  selected={
-                    matchPath(
-                      `${url_prefix}/studies/:studyId/trialsSelection`,
-                      pathname
-                    ) !== null
-                  }
-                >
-                  <ListItemIcon sx={styleListItemIcon}>
-                    <RuleIcon />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary="Trials (Selection)"
-                    sx={styleListItemText}
-                  />
-                </ListItemButton>
-              </ListItem>
-            )}
             <ListItem key="Note" disablePadding sx={styleListItem} title="Note">
               <ListItemButton
                 component={Link}
