@@ -15,6 +15,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { useConstants } from "../constantsProvider"
 import { CompareStudies } from "./CompareStudies"
 import { StudyDetail } from "./StudyDetail"
+import { StudyDetailContour } from "./StudyDetailContour"
+import { StudyDetailOverview } from "./StudyDetailOverview"
 import { StudyList } from "./StudyList"
 
 const queryClient = new QueryClient({
@@ -79,6 +81,21 @@ export const App: FC = () => {
             <Router>
               <Routes>
                 <Route
+                  path={url_prefix + "/studies/:studyId/history"}
+                  element={
+                    <StudyDetail
+                      toggleColorMode={toggleColorMode}
+                      page={"top"}
+                    />
+                  }
+                />
+                <Route
+                  path={url_prefix + "/studies/:studyId/visualization-contour"}
+                  element={
+                    <StudyDetailContour toggleColorMode={toggleColorMode} />
+                  }
+                />
+                <Route
                   path={url_prefix + "/studies/:studyId/analytics"}
                   element={
                     <StudyDetail
@@ -135,10 +152,7 @@ export const App: FC = () => {
                 <Route
                   path={url_prefix + "/studies/:studyId"}
                   element={
-                    <StudyDetail
-                      toggleColorMode={toggleColorMode}
-                      page={"top"}
-                    />
+                    <StudyDetailOverview toggleColorMode={toggleColorMode} />
                   }
                 />
                 <Route

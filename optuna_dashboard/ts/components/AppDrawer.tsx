@@ -3,12 +3,12 @@ import Brightness4Icon from "@mui/icons-material/Brightness4"
 import Brightness7Icon from "@mui/icons-material/Brightness7"
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft"
 import ChevronRightIcon from "@mui/icons-material/ChevronRight"
+import InfoOutlineIcon from "@mui/icons-material/InfoOutlined"
 import RateReviewIcon from "@mui/icons-material/RateReview"
 import RuleIcon from "@mui/icons-material/Rule"
 import SettingsIcon from "@mui/icons-material/Settings"
 import SyncIcon from "@mui/icons-material/Sync"
 import SyncDisabledIcon from "@mui/icons-material/SyncDisabled"
-import TableViewIcon from "@mui/icons-material/TableView"
 import ViewListIcon from "@mui/icons-material/ViewList"
 import MuiAppBar, { AppBarProps as MuiAppBarProps } from "@mui/material/AppBar"
 import Box from "@mui/material/Box"
@@ -35,7 +35,6 @@ import { Link, matchPath, useLocation } from "react-router-dom"
 import {
   drawerOpenState,
   reloadIntervalState,
-  useShowExperimentalFeature,
   useStudyIsPreferential,
 } from "../state"
 import { Settings } from "./Settings"
@@ -47,7 +46,7 @@ import MenuIcon from "@mui/icons-material/Menu"
 import OpenInNewIcon from "@mui/icons-material/OpenInNew"
 import QueryStatsIcon from "@mui/icons-material/QueryStats"
 import ThumbUpAltIcon from "@mui/icons-material/ThumbUpAlt"
-import { Switch } from "@mui/material"
+import { ListSubheader, Switch } from "@mui/material"
 import { actionCreator } from "../action"
 import { useConstants } from "../constantsProvider"
 
@@ -148,7 +147,6 @@ export const AppDrawer: FC<{
   const reloadInterval = useAtomValue(reloadIntervalState)
   const isPreferential =
     studyId !== undefined ? useStudyIsPreferential(studyId) : null
-  const [showExperimentalFeatures] = useShowExperimentalFeature()
 
   const styleListItem = {
     display: "block",
@@ -229,10 +227,10 @@ export const AppDrawer: FC<{
         {pathname.startsWith(`${url_prefix}/studies/`) && (
           <List>
             <ListItem
-              key="History"
+              key="Overview"
               disablePadding
               sx={styleListItem}
-              title={isPreferential ? "Feedback Preference" : "History"}
+              title="Overview"
             >
               <ListItemButton
                 component={Link}
@@ -243,10 +241,62 @@ export const AppDrawer: FC<{
                 }
               >
                 <ListItemIcon sx={styleListItemIcon}>
+                  <InfoOutlineIcon />
+                </ListItemIcon>
+                <ListItemText primary="Overview" sx={styleListItemText} />
+              </ListItemButton>
+            </ListItem>
+            <ListSubheader component="div" id="nested-list-subheader">
+              {open ? "Views" : ""}
+            </ListSubheader>
+            <ListItem
+              key="History"
+              disablePadding
+              sx={styleListItem}
+              title={isPreferential ? "Feedback Preference" : "History"}
+            >
+              <ListItemButton
+                component={Link}
+                to={`${url_prefix}/studies/${studyId}/history`}
+                sx={styleListItemButton}
+                selected={
+                  matchPath(
+                    `${url_prefix}/studies/:studyId/history`,
+                    pathname
+                  ) !== null
+                }
+              >
+                <ListItemIcon sx={styleListItemIcon}>
                   {isPreferential ? <ThumbUpAltIcon /> : <AutoGraphIcon />}
                 </ListItemIcon>
                 <ListItemText
                   primary={isPreferential ? "Feedback Preference" : "History"}
+                  sx={styleListItemText}
+                />
+              </ListItemButton>
+            </ListItem>
+            <ListItem
+              key="TrialSelection"
+              disablePadding
+              sx={styleListItem}
+              title="Trials (Selection)"
+            >
+              <ListItemButton
+                component={Link}
+                to={`${url_prefix}/studies/${studyId}/trialSelection`}
+                sx={styleListItemButton}
+                selected={
+                  matchPath(
+                    `${url_prefix}/studies/:studyId/trialsSelection`,
+                    pathname
+                  ) !== null
+                }
+              >
+                <ListItemIcon sx={styleListItemIcon}>
+                  <RuleIcon />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Trials (Selection)"
                   sx={styleListItemText}
                 />
               </ListItemButton>
@@ -279,6 +329,32 @@ export const AppDrawer: FC<{
                 </ListItemButton>
               </ListItem>
             )}
+            <ListSubheader component="div" id="nested-list-subheader">
+              {open ? "Visualizations" : ""}
+            </ListSubheader>
+            <ListItem
+              key="Contour Plot"
+              disablePadding
+              sx={styleListItem}
+              title="Overview"
+            >
+              <ListItemButton
+                component={Link}
+                to={`${url_prefix}/studies/${studyId}/visualization-contour`}
+                sx={styleListItemButton}
+                selected={
+                  matchPath(
+                    `${url_prefix}/studies/:studyId/visualization-contour`,
+                    pathname
+                  ) !== null
+                }
+              >
+                <ListItemIcon sx={styleListItemIcon}>
+                  <QueryStatsIcon />
+                </ListItemIcon>
+                <ListItemText primary="Contour" sx={styleListItemText} />
+              </ListItemButton>
+            </ListItem>
             <ListItem
               key="Analytics"
               disablePadding
@@ -330,6 +406,9 @@ export const AppDrawer: FC<{
                 </ListItemButton>
               </ListItem>
             )}
+            <ListSubheader component="div" id="nested-list-subheader">
+              {open ? "Others" : ""}
+            </ListSubheader>
             <ListItem
               key="TableList"
               disablePadding
@@ -351,32 +430,6 @@ export const AppDrawer: FC<{
                   <ViewListIcon />
                 </ListItemIcon>
                 <ListItemText primary="Trials (List)" sx={styleListItemText} />
-              </ListItemButton>
-            </ListItem>
-            <ListItem
-              key="TrialSelection"
-              disablePadding
-              sx={styleListItem}
-              title="Trials (Selection)"
-            >
-              <ListItemButton
-                component={Link}
-                to={`${url_prefix}/studies/${studyId}/trialSelection`}
-                sx={styleListItemButton}
-                selected={
-                  matchPath(
-                    `${url_prefix}/studies/:studyId/trialsSelection`,
-                    pathname
-                  ) !== null
-                }
-              >
-                <ListItemIcon sx={styleListItemIcon}>
-                  <RuleIcon />
-                </ListItemIcon>
-                <ListItemText
-                  primary="Trials (Selection)"
-                  sx={styleListItemText}
-                />
               </ListItemButton>
             </ListItem>
             <ListItem key="Note" disablePadding sx={styleListItem} title="Note">
