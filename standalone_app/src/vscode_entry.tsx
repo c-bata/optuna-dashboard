@@ -1,5 +1,4 @@
 import type { StorageWorkerFactory } from "@optuna/storage"
-import sqliteWasmUrl from "@optuna/storage/sqlite-wasm"
 import React, { FC, useContext, useEffect } from "react"
 import ReactDOM from "react-dom/client"
 import { App } from "./components/App"
@@ -26,7 +25,7 @@ export const AppWrapper: FC = () => {
           void loadStorage(
             toArrayBuffer(message.content),
             createWebviewWorkerFactory(message.workerUri),
-            message.sqliteWasmUri || sqliteWasmUrl,
+            message.sqliteWasmUri,
             toArrayBuffer(message.sqliteWasmContent)
           )
           break

@@ -1,6 +1,39 @@
+const fs = require('fs');
 const webpack = require('webpack');
 const path = require('path');
 const CompressionPlugin = require("compression-webpack-plugin");
+
+// sqlite3.wasm is loaded by the storage Worker through a URL that the extension
+// resolves with asWebviewUri(), so nothing in the bundles imports it. Emit it
+// explicitly instead of relying on an otherwise unused `*.wasm?url` import.
+const sqliteWasmPath = path.join(
+    path.dirname(require.resolve('@sqlite.org/sqlite-wasm/package.json', {
+        paths: [path.resolve(__dirname, '../tslib/storage')],
+    })),
+    'sqlite-wasm/jswasm/sqlite3.wasm'
+);
+
+class EmitSqliteWasmPlugin {
+    apply(compiler) {
+        const pluginName = 'EmitSqliteWasmPlugin';
+        compiler.hooks.thisCompilation.tap(pluginName, (compilation) => {
+            compilation.hooks.processAssets.tapPromise(
+                {
+                    name: pluginName,
+                    stage: compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_ADDITIONAL,
+                },
+                async () => {
+                    compilation.fileDependencies.add(sqliteWasmPath);
+                    const content = await fs.promises.readFile(sqliteWasmPath);
+                    compilation.emitAsset(
+                        'sqlite3.wasm',
+                        new compiler.webpack.sources.RawSource(content)
+                    );
+                }
+            );
+        });
+    }
+}
 
 module.exports = {
     mode: "production",
@@ -41,14 +74,9 @@ module.exports = {
                 }
             }] },
             {
-                resourceQuery: /url/,
-                test: /\.wasm$/,
-                type: "asset/resource",
-                generator: {
-                    filename: "sqlite3.wasm",
-                },
-            },
-            {
+                // `*.wasm?url` is a Vite-only entrypoint of @optuna/storage. Keep it
+                // out of the inline rule so that importing it here fails loudly
+                // instead of silently inlining sqlite3.wasm as base64.
                 test: /\.wasm$/,
                 resourceQuery: { not: [/url/] },
                 type: "asset/inline",
@@ -73,6 +101,7 @@ module.exports = {
     },
     plugins: [
         new webpack.DefinePlugin({ 'IS_VSCODE': JSON.stringify(true) }),
+        new EmitSqliteWasmPlugin(),
         new CompressionPlugin()
     ]
 };
