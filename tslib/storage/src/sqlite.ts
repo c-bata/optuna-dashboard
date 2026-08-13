@@ -65,18 +65,19 @@ export class SQLite3Storage implements OptunaStorage {
       print: console.log,
       printErr: console.log,
     }
+    // locateFile is always set, even when the wasm binary is passed in directly.
+    // Without it sqlite-wasm falls back to `new URL("sqlite3.wasm",
+    // import.meta.url).href`, which throws when this module runs in a Worker that
+    // was started from a VS Code blob: URL.
+    initOptions.locateFile = (path: string) =>
+      path === "sqlite3.wasm" && options.sqliteWasmUrl !== undefined
+        ? options.sqliteWasmUrl
+        : path
     if (options.sqliteWasmBuffer !== undefined) {
       initOptions.wasmBinary = options.sqliteWasmBuffer
-    } else if (options.sqliteWasmUrl !== undefined) {
-      initOptions.locateFile = (path: string) => {
-        if (path !== "sqlite3.wasm") {
-          throw new Error(`Unexpected SQLite wasm asset: ${path}`)
-        }
-        return options.sqliteWasmUrl as string
-      }
     }
 
-    const sqlite3 = await initializeSQLiteWasm(initOptions)
+    const sqlite3 = await sqlite3InitModule(initOptions)
     let db: SQLite3DB | null = null
     try {
       const p = sqlite3.wasm.allocFromTypedArray(arrayBuffer)
@@ -144,42 +145,6 @@ export class SQLite3Storage implements OptunaStorage {
     this.closed = true
     const db = await this.db
     db.close()
-  }
-}
-
-const initializeSQLiteWasm = async (
-  options: Parameters<typeof sqlite3InitModule>[0] & {
-    wasmBinary?: ArrayBuffer
-  }
-) => {
-  // sqlite-wasm also registers an OPFS VFS during initialization. This
-  // application only uses an in-memory deserialized database, so suppress the
-  // optional nested OPFS Worker while the module is being initialized. The URL
-  // wrapper also avoids the invalid relative URL that sqlite-wasm constructs
-  // when this storage Worker is started from a VS Code Blob URL.
-  const originalWorker = globalThis.Worker
-  const originalURL = globalThis.URL
-  const NativeURL = originalURL
-  const SafeURL = class extends NativeURL {
-    constructor(input: string | URL, base?: string | URL) {
-      if (
-        typeof input === "string" &&
-        input.endsWith(".js") &&
-        base?.toString().startsWith("blob:")
-      ) {
-        super("https://sqlite-worker.invalid/worker.js")
-      } else {
-        super(input, base)
-      }
-    }
-  }
-  try {
-    globalThis.Worker = undefined as unknown as typeof Worker
-    globalThis.URL = SafeURL as typeof URL
-    return await sqlite3InitModule(options)
-  } finally {
-    globalThis.Worker = originalWorker
-    globalThis.URL = originalURL
   }
 }
 

@@ -89,7 +89,7 @@ module.exports = {
             },
             {
                 test: /sqlite3-bundler-friendly\.mjs$/,
-                use: path.resolve(__dirname, 'sqlite-wasm-bundler-loader.cjs'),
+                use: path.resolve(__dirname, '../tslib/storage/build/sqlite-wasm-bundler-loader.cjs'),
             }
         ]
     },

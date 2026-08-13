@@ -5,6 +5,15 @@ import type {
   StorageWorkerResponse,
 } from "./worker_protocol.js"
 
+// sqlite-wasm tries to install an OPFS VFS while it initializes, which starts a
+// nested Worker for its async proxy. This viewer only opens an in-memory
+// database, and the nested Worker cannot be resolved from a Worker that was
+// started from a VS Code blob: URL. Removing the constructor keeps the OPFS
+// installation from getting that far. The storage Worker never starts a Worker
+// of its own, so this is scoped to the Worker instead of patching globals from
+// the SQLite backend, which also runs on the main thread in other consumers.
+;(globalThis as { Worker?: unknown }).Worker = undefined
+
 type WorkerScope = {
   onmessage: (event: MessageEvent<StorageWorkerRequest>) => void
   postMessage: (message: StorageWorkerResponse) => void
