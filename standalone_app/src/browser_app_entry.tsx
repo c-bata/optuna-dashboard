@@ -1,6 +1,7 @@
 import type { StorageWorkerFactory } from "@optuna/storage"
 import React from "react"
 import ReactDOM from "react-dom/client"
+import sqliteWasmUrl from "../../tslib/storage/node_modules/@sqlite.org/sqlite-wasm/sqlite-wasm/jswasm/sqlite3.wasm?url"
 import { App } from "./components/App"
 import { StorageProvider } from "./components/StorageProvider"
 import "./index.css"
@@ -18,7 +19,10 @@ const workerFactory: StorageWorkerFactory = async () => {
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <StorageProvider workerFactory={workerFactory}>
+    <StorageProvider
+      workerFactory={workerFactory}
+      sqliteWasmUrl={sqliteWasmUrl}
+    >
       <App />
     </StorageProvider>
   </React.StrictMode>

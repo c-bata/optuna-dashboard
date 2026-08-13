@@ -1,15 +1,18 @@
-import { JournalFileStorage } from "./journal"
+import { JournalFileStorage } from "./journal.js"
+import { SQLite3Storage } from "./sqlite.js"
 import type {
   StorageWorkerRequest,
   StorageWorkerResponse,
-} from "./worker_protocol"
+} from "./worker_protocol.js"
 
 type WorkerScope = {
   onmessage: (event: MessageEvent<StorageWorkerRequest>) => void
   postMessage: (message: StorageWorkerResponse) => void
 }
 
-let storage: JournalFileStorage | null = null
+type WorkerStorage = JournalFileStorage | SQLite3Storage
+
+let storage: WorkerStorage | null = null
 
 const workerScope = self as unknown as WorkerScope
 
@@ -45,16 +48,19 @@ const postError = (id: number, error: unknown): void => {
   })
 }
 
-const ensureJournal = (buffer: ArrayBuffer): void => {
+const isSQLiteFile = (buffer: ArrayBuffer): boolean => {
   const headerLength = Math.min(buffer.byteLength, 16)
   const header = new TextDecoder().decode(
     new Uint8Array(buffer, 0, headerLength)
   )
-  if (header === "SQLite format 3\u0000") {
-    throw new WorkerRequestError(
-      "unsupported_format",
-      "SQLite storage is not supported by this worker"
-    )
+  return header === "SQLite format 3\u0000"
+}
+
+const closeStorage = async (): Promise<void> => {
+  const currentStorage = storage
+  storage = null
+  if (currentStorage !== null) {
+    await currentStorage.close()
   }
 }
 
@@ -70,14 +76,43 @@ workerScope.onmessage = async (event) => {
             "Storage is already open"
           )
         }
-        ensureJournal(request.buffer)
-        storage = new JournalFileStorage(request.buffer)
+        if (isSQLiteFile(request.buffer)) {
+          if (
+            request.sqliteWasmUrl === undefined &&
+            request.sqliteWasmBuffer === undefined
+          ) {
+            throw new WorkerRequestError(
+              "missing_sqlite_wasm",
+              "SQLite wasm URL or buffer is required"
+            )
+          }
+          const sqliteStorage = new SQLite3Storage(request.buffer, {
+            sqliteWasmUrl: request.sqliteWasmUrl,
+            sqliteWasmBuffer: request.sqliteWasmBuffer,
+          })
+          try {
+            await sqliteStorage.waitUntilReady()
+          } catch (error) {
+            await sqliteStorage.close().catch(() => {})
+            throw error
+          }
+          storage = sqliteStorage
+          workerScope.postMessage({
+            id: request.id,
+            ok: true,
+            result: { format: "sqlite3", warnings: [] },
+          })
+          break
+        }
+
+        const journalStorage = new JournalFileStorage(request.buffer)
+        storage = journalStorage
         workerScope.postMessage({
           id: request.id,
           ok: true,
           result: {
             format: "journal",
-            warnings: storage.getErrors(),
+            warnings: journalStorage.getErrors(),
           },
         })
         break
@@ -105,7 +140,7 @@ workerScope.onmessage = async (event) => {
         break
       }
       case "close": {
-        storage = null
+        await closeStorage()
         workerScope.postMessage({ id: request.id, ok: true, result: null })
         break
       }

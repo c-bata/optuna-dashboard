@@ -1,7 +1,12 @@
 import * as Optuna from "@optuna/types"
 // @ts-ignore
-import sqlite3InitModule from "@sqlite.org/sqlite-wasm"
+import sqlite3InitModule from "../node_modules/@sqlite.org/sqlite-wasm/sqlite-wasm/jswasm/sqlite3-bundler-friendly.mjs"
 import { OptunaStorage } from "./storage"
+
+export type SQLiteWasmOptions = {
+  sqliteWasmUrl?: string
+  sqliteWasmBuffer?: ArrayBuffer
+}
 
 // TODO(porink0424): Refactor to common function with journal.ts (current workaround duplicates code due to missing file extensions in tsc build output).
 const isDistributionEqual = (
@@ -46,31 +51,61 @@ export class SQLite3Storage implements OptunaStorage {
   db: Promise<SQLite3DB>
   summaries_cache: Optuna.StudySummary[] | null
   private closed = false
-  constructor(arrayBuffer: ArrayBuffer) {
-    this.db = this.initDB(arrayBuffer)
+  constructor(arrayBuffer: ArrayBuffer, options: SQLiteWasmOptions = {}) {
+    this.db = this.initDB(arrayBuffer, options)
     this.summaries_cache = null
   }
 
-  async initDB(arrayBuffer: ArrayBuffer): Promise<SQLite3DB> {
-    return sqlite3InitModule({
+  async initDB(
+    arrayBuffer: ArrayBuffer,
+    options: SQLiteWasmOptions
+  ): Promise<SQLite3DB> {
+    const initOptions: Parameters<typeof sqlite3InitModule>[0] & {
+      wasmBinary?: ArrayBuffer
+    } = {
       print: console.log,
       printErr: console.log,
-      // @ts-ignore
-    }).then((sqlite3) => {
+    }
+    if (options.sqliteWasmBuffer !== undefined) {
+      initOptions.wasmBinary = options.sqliteWasmBuffer
+    } else if (options.sqliteWasmUrl !== undefined) {
+      initOptions.locateFile = (path: string) => {
+        if (path !== "sqlite3.wasm") {
+          throw new Error(`Unexpected SQLite wasm asset: ${path}`)
+        }
+        return options.sqliteWasmUrl as string
+      }
+    }
+
+    const sqlite3 = await initializeSQLiteWasm(initOptions)
+    let db: SQLite3DB | null = null
+    try {
       const p = sqlite3.wasm.allocFromTypedArray(arrayBuffer)
-      const db = new sqlite3.oo1.DB()
+      const sqliteDb = new sqlite3.oo1.DB()
+      db = sqliteDb
       const rc = sqlite3.capi.sqlite3_deserialize(
         // @ts-ignore
-        db.pointer,
+        sqliteDb.pointer,
         "main",
         p,
         arrayBuffer.byteLength,
         arrayBuffer.byteLength,
         sqlite3.capi.SQLITE_DESERIALIZE_FREEONCLOSE
       )
-      db.checkRc(rc)
-      return db
-    })
+      sqliteDb.checkRc(rc)
+      return sqliteDb
+    } catch (error) {
+      try {
+        db?.close()
+      } catch {
+        // Preserve the initialization error.
+      }
+      throw error
+    }
+  }
+
+  async waitUntilReady(): Promise<void> {
+    await this.db
   }
 
   getStudies = async (): Promise<Optuna.StudySummary[]> => {
@@ -110,6 +145,37 @@ export class SQLite3Storage implements OptunaStorage {
     this.closed = true
     const db = await this.db
     db.close()
+  }
+}
+
+const initializeSQLiteWasm = async (
+  options: Parameters<typeof sqlite3InitModule>[0] & {
+    wasmBinary?: ArrayBuffer
+  }
+) => {
+  const originalWorker = globalThis.Worker
+  const originalURL = globalThis.URL
+  const NativeURL = originalURL
+  const SafeURL = class extends NativeURL {
+    constructor(input: string | URL, base?: string | URL) {
+      if (
+        typeof input === "string" &&
+        input.endsWith(".js") &&
+        base?.toString().startsWith("blob:")
+      ) {
+        super("https://sqlite-worker.invalid/worker.js")
+      } else {
+        super(input, base)
+      }
+    }
+  }
+  try {
+    globalThis.Worker = undefined as unknown as typeof Worker
+    globalThis.URL = SafeURL as typeof URL
+    return await sqlite3InitModule(options)
+  } finally {
+    globalThis.Worker = originalWorker
+    globalThis.URL = originalURL
   }
 }
 

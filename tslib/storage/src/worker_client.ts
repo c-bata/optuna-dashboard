@@ -85,12 +85,14 @@ export class StorageWorkerClient implements OptunaStorage {
 
   public static async open(
     buffer: ArrayBuffer,
-    workerFactory: StorageWorkerFactory
+    workerFactory: StorageWorkerFactory,
+    sqliteWasmUrl?: string,
+    sqliteWasmBuffer?: ArrayBuffer
   ): Promise<StorageWorkerClient> {
     const client = new StorageWorkerClient(await workerFactory())
     const openPromise = client.request<OpenStorageResult>(
-      { type: "open", buffer },
-      [buffer]
+      { type: "open", buffer, sqliteWasmUrl, sqliteWasmBuffer },
+      sqliteWasmBuffer === undefined ? [buffer] : [buffer, sqliteWasmBuffer]
     )
     client.openPromise = openPromise
 
@@ -219,7 +221,14 @@ export class StorageWorkerClient implements OptunaStorage {
 
 export const openStorage = async (
   buffer: ArrayBuffer,
-  workerFactory: StorageWorkerFactory
+  workerFactory: StorageWorkerFactory,
+  sqliteWasmUrl?: string,
+  sqliteWasmBuffer?: ArrayBuffer
 ): Promise<StorageWorkerClient> => {
-  return StorageWorkerClient.open(buffer, workerFactory)
+  return StorageWorkerClient.open(
+    buffer,
+    workerFactory,
+    sqliteWasmUrl,
+    sqliteWasmBuffer
+  )
 }

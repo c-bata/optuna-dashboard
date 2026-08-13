@@ -6,6 +6,7 @@ export {
   StorageWorkerError,
 } from "./worker_client.js"
 export type { OptunaStorage } from "./storage.js"
+export type { SQLiteWasmOptions } from "./sqlite.js"
 export type {
   OpenStorageResult,
   StorageWarning,

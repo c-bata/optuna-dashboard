@@ -31,27 +31,39 @@ export function activate(context: vscode.ExtensionContext) {
         "assets",
         "storage-worker.js"
       )
+      const sqliteWasmUri = vscode.Uri.joinPath(
+        context.extensionUri,
+        "assets",
+        "sqlite3.wasm"
+      )
 
       const appPath = panel.webview.asWebviewUri(indexJsUri)
 
-      panel.webview.html = getWebviewContent(appPath, panel.webview.cspSource)
       const handleMessage = async (message: { type: string }) => {
         switch (message.type) {
           case "webviewDidLoad": {
-            const content = await readFile(fileUri)
-            await panel.webview.postMessage({
-              type: "optunaStorage",
-              content,
-              workerUri: panel.webview
-                .asWebviewUri(storageWorkerJsUri)
-                .toString(),
-            })
+            try {
+              await panel.webview.postMessage({
+                type: "optunaStorage",
+                content: toArrayBuffer(await readFile(fileUri)),
+                workerUri: panel.webview
+                  .asWebviewUri(storageWorkerJsUri)
+                  .toString(),
+                sqliteWasmUri: panel.webview
+                  .asWebviewUri(sqliteWasmUri)
+                  .toString(),
+                sqliteWasmContent: toArrayBuffer(await readFile(sqliteWasmUri)),
+              })
+            } catch (error: unknown) {
+              console.error("Failed to load Optuna storage", error)
+            }
             break
           }
         }
       }
       const messageDisposable = panel.webview.onDidReceiveMessage(handleMessage)
       panel.onDidDispose(() => messageDisposable.dispose())
+      panel.webview.html = getWebviewContent(appPath, panel.webview.cspSource)
     }
   )
 
@@ -60,6 +72,17 @@ export function activate(context: vscode.ExtensionContext) {
 
 async function readFile(uri: vscode.Uri): Promise<Uint8Array> {
   return vscode.workspace.fs.readFile(uri)
+}
+
+function toArrayBuffer(content: Uint8Array): ArrayBuffer {
+  if (
+    content.buffer instanceof ArrayBuffer &&
+    content.byteOffset === 0 &&
+    content.byteLength === content.buffer.byteLength
+  ) {
+    return content.buffer
+  }
+  return content.slice().buffer as ArrayBuffer
 }
 
 function getWebviewContent(indexJsUri: vscode.Uri, cspSource: string): string {

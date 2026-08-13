@@ -1,14 +1,17 @@
 import type { StorageWorkerFactory } from "@optuna/storage"
 import React, { FC, useContext, useEffect } from "react"
 import ReactDOM from "react-dom/client"
+import sqliteWasmUrl from "../../tslib/storage/node_modules/@sqlite.org/sqlite-wasm/sqlite-wasm/jswasm/sqlite3.wasm?url"
 import { App } from "./components/App"
 import { StorageContext, StorageProvider } from "./components/StorageProvider"
 import "./index.css"
 
 type WebviewMessage = {
   type: "optunaStorage"
-  content: Uint8Array
+  content: unknown
   workerUri: string
+  sqliteWasmUri: string
+  sqliteWasmContent: unknown
 }
 
 export const AppWrapper: FC = () => {
@@ -22,7 +25,9 @@ export const AppWrapper: FC = () => {
         case "optunaStorage":
           void loadStorage(
             toArrayBuffer(message.content),
-            createWebviewWorkerFactory(message.workerUri)
+            createWebviewWorkerFactory(message.workerUri),
+            message.sqliteWasmUri || sqliteWasmUrl,
+            toArrayBuffer(message.sqliteWasmContent)
           )
           break
       }
@@ -55,15 +60,42 @@ const createWebviewWorkerFactory = (
   }
 }
 
-const toArrayBuffer = (content: Uint8Array): ArrayBuffer => {
-  if (
-    content.buffer instanceof ArrayBuffer &&
-    content.byteOffset === 0 &&
-    content.byteLength === content.buffer.byteLength
-  ) {
-    return content.buffer
+const isByte = (value: unknown): value is number => {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 0 &&
+    value <= 255
+  )
+}
+
+const toArrayBuffer = (content: unknown): ArrayBuffer => {
+  if (content instanceof ArrayBuffer) {
+    return content
   }
-  return content.slice().buffer as ArrayBuffer
+  if (content instanceof Uint8Array) {
+    if (
+      content.buffer instanceof ArrayBuffer &&
+      content.byteOffset === 0 &&
+      content.byteLength === content.buffer.byteLength
+    ) {
+      return content.buffer
+    }
+    return content.slice().buffer as ArrayBuffer
+  }
+
+  const values = Array.isArray(content)
+    ? content
+    : content !== null && typeof content === "object"
+      ? Object.entries(content)
+          .filter(([key]) => /^\d+$/.test(key))
+          .sort(([left], [right]) => Number(left) - Number(right))
+          .map(([, value]) => value)
+      : null
+  if (values !== null && values.length > 0 && values.every(isByte)) {
+    return Uint8Array.from(values).buffer
+  }
+  throw new TypeError("Storage content is not a byte sequence")
 }
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(

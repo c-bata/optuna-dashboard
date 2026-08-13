@@ -41,7 +41,16 @@ module.exports = {
                 }
             }] },
             {
+                resourceQuery: /url/,
                 test: /\.wasm$/,
+                type: "asset/resource",
+                generator: {
+                    filename: "sqlite3.wasm",
+                },
+            },
+            {
+                test: /\.wasm$/,
+                resourceQuery: { not: [/url/] },
                 type: "asset/inline",
             },
             {
@@ -49,11 +58,18 @@ module.exports = {
                 resolve: {
                     fullySpecified: false
                 }
+            },
+            {
+                test: /sqlite3-bundler-friendly\.mjs$/,
+                use: path.resolve(__dirname, 'sqlite-wasm-bundler-loader.cjs'),
             }
         ]
     },
     resolve: {
-        extensions: ['.ts', '.tsx', '.js']
+        extensions: ['.ts', '.tsx', '.js'],
+        extensionAlias: {
+            '.js': ['.ts', '.js'],
+        },
     },
     plugins: [
         new webpack.DefinePlugin({ 'IS_VSCODE': JSON.stringify(true) }),

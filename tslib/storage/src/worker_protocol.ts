@@ -6,12 +6,17 @@ export type StorageWarning = {
 }
 
 export type OpenStorageResult = {
-  format: "journal"
+  format: "journal" | "sqlite3"
   warnings: StorageWarning[]
 }
 
 export type StorageWorkerRequestWithoutId =
-  | { type: "open"; buffer: ArrayBuffer }
+  | {
+      type: "open"
+      buffer: ArrayBuffer
+      sqliteWasmUrl?: string
+      sqliteWasmBuffer?: ArrayBuffer
+    }
   | { type: "getStudies" }
   | { type: "getStudy"; studyId: number }
   | { type: "close" }
