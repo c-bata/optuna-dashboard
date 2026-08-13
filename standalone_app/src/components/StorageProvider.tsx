@@ -1,3 +1,8 @@
+import type { OptunaStorage } from "@optuna/storage"
+import {
+  type StorageWorkerFactory,
+  openStorage,
+} from "@optuna/storage/worker-client"
 import React, {
   FC,
   createContext,
@@ -6,11 +11,6 @@ import React, {
   useRef,
   useState,
 } from "react"
-import type { OptunaStorage } from "../../../tslib/storage/src/storage"
-import {
-  type StorageWorkerFactory,
-  openStorage,
-} from "../../../tslib/storage/src/worker_client"
 
 export const StorageContext = createContext<{
   storage: OptunaStorage | null

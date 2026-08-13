@@ -1,14 +1,14 @@
 import type { StorageWorkerFactory } from "@optuna/storage"
+import sqliteWasmUrl from "@optuna/storage/sqlite-wasm"
 import React from "react"
 import ReactDOM from "react-dom/client"
-import sqliteWasmUrl from "../../tslib/storage/node_modules/@sqlite.org/sqlite-wasm/sqlite-wasm/jswasm/sqlite3.wasm?url"
 import { App } from "./components/App"
 import { StorageProvider } from "./components/StorageProvider"
 import "./index.css"
 
 const workerFactory: StorageWorkerFactory = async () => {
   const worker = new Worker(
-    new URL("../../tslib/storage/src/journal_worker.ts", import.meta.url),
+    new URL("../../tslib/storage/src/storage_worker.ts", import.meta.url),
     { type: "module" }
   )
   return {

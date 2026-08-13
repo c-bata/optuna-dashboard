@@ -5,7 +5,7 @@ import { Worker as NodeWorker } from "node:worker_threads"
 
 import { StorageWorkerClient } from "../pkg/worker_client.js"
 
-const workerModuleUrl = new URL("../pkg/journal_worker.js", import.meta.url)
+const workerModuleUrl = new URL("../pkg/storage_worker.js", import.meta.url)
 const sqliteAssetUrl = new URL("./asset/db.sqlite3", import.meta.url)
 const journalAssetUrl = new URL("./asset/journal.log", import.meta.url)
 const sqliteWasmUrl = new URL(
@@ -67,11 +67,16 @@ describe("storage worker", () => {
       await readAsset(journalAssetUrl),
       createWorkerFactory()
     )
-
-    const studies = await storage.getStudies()
-    assert.equal(studies.length, 6)
-    assert.equal((await storage.getStudy(studies[0].id))?.name, studies[0].name)
-    await storage.close()
+    try {
+      const studies = await storage.getStudies()
+      assert.equal(studies.length, 6)
+      assert.equal(
+        (await storage.getStudy(studies[0].id))?.name,
+        studies[0].name
+      )
+    } finally {
+      await storage.close()
+    }
   })
 
   it("opens SQLite storage with a transferred wasm binary", async () => {
@@ -81,11 +86,15 @@ describe("storage worker", () => {
       undefined,
       await readAsset(sqliteWasmUrl)
     )
-
-    const studies = await storage.getStudies()
-    assert.equal(studies.length, 0)
-    assert.equal(await storage.getStudy(1), null)
-    await storage.close()
+    try {
+      const studies = await storage.getStudies()
+      assert.equal(studies.length, 6)
+      const study = await storage.getStudy(studies[0].id)
+      assert.ok(study)
+      assert.equal(study.name, studies[0].name)
+    } finally {
+      await storage.close()
+    }
   })
 
   it("reports a missing SQLite wasm asset after transferring the database", async () => {

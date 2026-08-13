@@ -1,6 +1,5 @@
 import * as Optuna from "@optuna/types"
-// @ts-ignore
-import sqlite3InitModule from "../node_modules/@sqlite.org/sqlite-wasm/sqlite-wasm/jswasm/sqlite3-bundler-friendly.mjs"
+import sqlite3InitModule from "./sqlite-init.js"
 import { OptunaStorage } from "./storage"
 
 export type SQLiteWasmOptions = {
@@ -153,6 +152,11 @@ const initializeSQLiteWasm = async (
     wasmBinary?: ArrayBuffer
   }
 ) => {
+  // sqlite-wasm also registers an OPFS VFS during initialization. This
+  // application only uses an in-memory deserialized database, so suppress the
+  // optional nested OPFS Worker while the module is being initialized. The URL
+  // wrapper also avoids the invalid relative URL that sqlite-wasm constructs
+  // when this storage Worker is started from a VS Code Blob URL.
   const originalWorker = globalThis.Worker
   const originalURL = globalThis.URL
   const NativeURL = originalURL

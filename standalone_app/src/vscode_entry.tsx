@@ -1,7 +1,7 @@
 import type { StorageWorkerFactory } from "@optuna/storage"
+import sqliteWasmUrl from "@optuna/storage/sqlite-wasm"
 import React, { FC, useContext, useEffect } from "react"
 import ReactDOM from "react-dom/client"
-import sqliteWasmUrl from "../../tslib/storage/node_modules/@sqlite.org/sqlite-wasm/sqlite-wasm/jswasm/sqlite3.wasm?url"
 import { App } from "./components/App"
 import { StorageContext, StorageProvider } from "./components/StorageProvider"
 import "./index.css"

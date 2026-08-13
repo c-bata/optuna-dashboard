@@ -17,7 +17,7 @@ module.exports = {
     },
     entry: {
         bundle: __dirname + '/src/vscode_entry.tsx',
-        'storage-worker': path.resolve(__dirname, '../tslib/storage/src/journal_worker.ts'),
+        'storage-worker': path.resolve(__dirname, '../tslib/storage/src/storage_worker.ts'),
     },
     output: {
         path: path.resolve(__dirname, '../vscode/assets/'),
