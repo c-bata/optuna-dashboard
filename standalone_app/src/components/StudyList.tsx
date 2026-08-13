@@ -1,6 +1,7 @@
 import { Search } from "@mui/icons-material"
 import Brightness4Icon from "@mui/icons-material/Brightness4"
 import Brightness7Icon from "@mui/icons-material/Brightness7"
+import CloseIcon from "@mui/icons-material/Close"
 import SortIcon from "@mui/icons-material/Sort"
 import {
   AppBar,
@@ -36,7 +37,7 @@ export const StudyList: FC<{
   toggleColorMode: () => void
 }> = ({ toggleColorMode }) => {
   const theme = useTheme()
-  const { storage, reportError } = useContext(StorageContext)
+  const { storage, closeStorage, reportError } = useContext(StorageContext)
   const [studies, setStudies] = useState<Optuna.StudySummary[]>([])
 
   const [_studyFilterText, setStudyFilterText] = useState<string>("")
@@ -46,6 +47,7 @@ export const StudyList: FC<{
     let active = true
     const fetchStudies = async () => {
       if (storage === null) {
+        setStudies([])
         return
       }
       try {
@@ -136,6 +138,17 @@ export const StudyList: FC<{
           <Toolbar>
             <Typography variant="h6">Optuna Dashboard (Wasm ver.)</Typography>
             <Box sx={{ flexGrow: 1 }} />
+            {!IS_VSCODE && storage !== null && (
+              <IconButton
+                onClick={() => {
+                  void closeStorage()
+                }}
+                color="inherit"
+                title="Close the current storage file"
+              >
+                <CloseIcon />
+              </IconButton>
+            )}
             <IconButton
               onClick={() => {
                 toggleColorMode()

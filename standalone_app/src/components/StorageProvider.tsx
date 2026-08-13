@@ -63,6 +63,7 @@ export const StorageProvider: FC<{
     if (mountedRef.current) {
       setStorage(null)
       setLoading(false)
+      setError(null)
     }
     if (currentStorage !== null) {
       try {
