@@ -10,7 +10,6 @@ type WebviewMessage = {
   content: unknown
   workerUri: string
   sqliteWasmUri: string
-  sqliteWasmContent: unknown
 }
 
 export const AppWrapper: FC = () => {
@@ -25,8 +24,7 @@ export const AppWrapper: FC = () => {
           void loadStorage(
             toArrayBuffer(message.content, "Storage content"),
             createWebviewWorkerFactory(message.workerUri),
-            message.sqliteWasmUri,
-            toArrayBuffer(message.sqliteWasmContent, "SQLite wasm content")
+            message.sqliteWasmUri
           )
           break
       }

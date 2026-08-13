@@ -51,6 +51,8 @@ export const StorageProvider: FC<{
       loadError instanceof Error
         ? loadError
         : new Error("Storage request failed")
+    // The VS Code Webview has no UI for this yet, so keep a console trace there.
+    console.error("Optuna storage error", loadError)
     if (mountedRef.current) {
       setError(normalizedError)
     }

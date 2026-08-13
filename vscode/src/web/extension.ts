@@ -49,10 +49,13 @@ export function activate(context: vscode.ExtensionContext) {
                 workerUri: panel.webview
                   .asWebviewUri(storageWorkerJsUri)
                   .toString(),
+                // The storage Worker loads the wasm from this URI. The bytes are
+                // not sent along: the Worker only needs them when the opened file
+                // is a SQLite database, and reading them here would cost a MB of
+                // IPC for every panel, Journal files included.
                 sqliteWasmUri: panel.webview
                   .asWebviewUri(sqliteWasmUri)
                   .toString(),
-                sqliteWasmContent: toArrayBuffer(await readFile(sqliteWasmUri)),
               })
             } catch (error: unknown) {
               console.error("Failed to load Optuna storage", error)
