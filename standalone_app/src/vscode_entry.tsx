@@ -23,10 +23,10 @@ export const AppWrapper: FC = () => {
       switch (message.type) {
         case "optunaStorage":
           void loadStorage(
-            toArrayBuffer(message.content),
+            toArrayBuffer(message.content, "Storage content"),
             createWebviewWorkerFactory(message.workerUri),
             message.sqliteWasmUri,
-            toArrayBuffer(message.sqliteWasmContent)
+            toArrayBuffer(message.sqliteWasmContent, "SQLite wasm content")
           )
           break
       }
@@ -59,16 +59,13 @@ const createWebviewWorkerFactory = (
   }
 }
 
-const isByte = (value: unknown): value is number => {
-  return (
-    typeof value === "number" &&
-    Number.isInteger(value) &&
-    value >= 0 &&
-    value <= 255
-  )
-}
-
-const toArrayBuffer = (content: unknown): ArrayBuffer => {
+// Webview messages carry typed arrays since VS Code 1.57, so `content` normally
+// arrives as a Uint8Array. Some hosts hand over an array or an index keyed object
+// instead, and a storage file can be hundreds of megabytes, so the fallback must
+// stay linear and must not allocate per byte.
+// TODO: record which host actually needs the index keyed fallback and drop it if
+// no supported host does.
+const toArrayBuffer = (content: unknown, label: string): ArrayBuffer => {
   if (content instanceof ArrayBuffer) {
     return content
   }
@@ -82,19 +79,32 @@ const toArrayBuffer = (content: unknown): ArrayBuffer => {
     }
     return content.slice().buffer as ArrayBuffer
   }
-
-  const values = Array.isArray(content)
-    ? content
-    : content !== null && typeof content === "object"
-      ? Object.entries(content)
-          .filter(([key]) => /^\d+$/.test(key))
-          .sort(([left], [right]) => Number(left) - Number(right))
-          .map(([, value]) => value)
-      : null
-  if (values !== null && values.length > 0 && values.every(isByte)) {
-    return Uint8Array.from(values).buffer
+  if (content === null || typeof content !== "object") {
+    throw new TypeError(`${label} is not a byte sequence`)
   }
-  throw new TypeError("Storage content is not a byte sequence")
+
+  const indexed = content as ArrayLike<unknown>
+  const length =
+    typeof indexed.length === "number"
+      ? indexed.length
+      : Object.keys(content).length
+  if (!Number.isInteger(length) || length <= 0) {
+    throw new TypeError(`${label} is not a byte sequence`)
+  }
+  const bytes = new Uint8Array(length)
+  for (let i = 0; i < length; i++) {
+    const value = indexed[i]
+    if (
+      typeof value !== "number" ||
+      !Number.isInteger(value) ||
+      value < 0 ||
+      value > 255
+    ) {
+      throw new TypeError(`${label} is not a byte sequence`)
+    }
+    bytes[i] = value
+  }
+  return bytes.buffer
 }
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
