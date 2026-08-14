@@ -10,11 +10,19 @@ declare function acquireVsCodeApi(): {
 }
 
 // acquireVsCodeApi() may only be called once per Webview, so memoize it outside
-// of the component: StrictMode mounts the effect below twice.
+// of the component: StrictMode mounts the effect below twice. It also throws
+// when something else already acquired the API, which happens with a stale
+// extension build whose HTML still holds the old inline script. Report that
+// instead of throwing out of an effect, which would unmount the whole app.
 let vscodeApi: ReturnType<typeof acquireVsCodeApi> | null = null
-const getVsCodeApi = (): ReturnType<typeof acquireVsCodeApi> => {
+const getVsCodeApi = (): ReturnType<typeof acquireVsCodeApi> | null => {
   if (vscodeApi === null) {
-    vscodeApi = acquireVsCodeApi()
+    try {
+      vscodeApi = acquireVsCodeApi()
+    } catch (error) {
+      console.error("Failed to acquire the VS Code API", error)
+      return null
+    }
   }
   return vscodeApi
 }
@@ -53,7 +61,7 @@ export const AppWrapper: FC = () => {
     console.log("[optuna-dashboard] posting webviewDidLoad")
     // Ask for the storage only once the listener is in place. The extension
     // answers immediately, and a message posted before this point is dropped.
-    getVsCodeApi().postMessage({ type: "webviewDidLoad" })
+    getVsCodeApi()?.postMessage({ type: "webviewDidLoad" })
     return () => window.removeEventListener("message", handleMessage)
   }, [loadStorage])
   return <App />
