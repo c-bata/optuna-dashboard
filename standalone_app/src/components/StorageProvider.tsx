@@ -1,5 +1,6 @@
-import type { OptunaStorage } from "@optuna/storage"
 import {
+  type OptunaStorage,
+  type SQLiteWasmSource,
   type StorageWorkerFactory,
   openStorage,
 } from "@optuna/storage/worker-client"
@@ -12,13 +13,16 @@ import React, {
   useState,
 } from "react"
 
+export type StorageOpenOptions = {
+  workerFactory?: StorageWorkerFactory
+  sqliteWasm?: SQLiteWasmSource
+}
+
 export const StorageContext = createContext<{
   storage: OptunaStorage | null
   loadStorage: (
     arrayBuffer: ArrayBuffer,
-    workerFactory?: StorageWorkerFactory,
-    sqliteWasmUrl?: string,
-    sqliteWasmBuffer?: ArrayBuffer
+    options?: StorageOpenOptions
   ) => Promise<void>
   closeStorage: () => Promise<void>
   loading: boolean
@@ -33,18 +37,32 @@ export const StorageContext = createContext<{
   reportError: () => {},
 })
 
+// A viewer owns at most one storage session at a time. The session is kept in a
+// ref because every transition has to read the current one without waiting for
+// a re-render: a second drop must be rejected before React commits `loading`.
+//
+// `generation` invalidates work in flight. Closing, unmounting, or starting
+// another load bumps it, and a load that finds its generation stale closes the
+// storage it just opened instead of publishing it.
+type StorageSession = {
+  generation: number
+  storage: OptunaStorage | null
+  loading: boolean
+}
+
 export const StorageProvider: FC<{
   children: React.ReactNode
   workerFactory?: StorageWorkerFactory
-  sqliteWasmUrl?: string
-}> = ({ children, workerFactory, sqliteWasmUrl }) => {
+  sqliteWasm?: SQLiteWasmSource
+}> = ({ children, workerFactory, sqliteWasm }) => {
   const [storage, setStorage] = useState<OptunaStorage | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
-  const storageRef = useRef<OptunaStorage | null>(null)
-  const loadingRef = useRef(false)
-  const generationRef = useRef(0)
-  const mountedRef = useRef(true)
+  const sessionRef = useRef<StorageSession>({
+    generation: 0,
+    storage: null,
+    loading: false,
+  })
 
   const reportError = useCallback((loadError: unknown) => {
     const normalizedError =
@@ -54,20 +72,17 @@ export const StorageProvider: FC<{
     // StorageErrorNotifier only shows the message; keep the original error
     // around for the Webview developer tools.
     console.error("Optuna storage error", loadError)
-    if (mountedRef.current) {
-      setError(normalizedError)
-    }
+    setError(normalizedError)
   }, [])
 
   const closeStorage = useCallback(async () => {
-    generationRef.current += 1
-    const currentStorage = storageRef.current
-    storageRef.current = null
-    if (mountedRef.current) {
-      setStorage(null)
-      setLoading(false)
-      setError(null)
-    }
+    const session = sessionRef.current
+    session.generation += 1
+    const currentStorage = session.storage
+    session.storage = null
+    setStorage(null)
+    setLoading(false)
+    setError(null)
     if (currentStorage !== null) {
       try {
         await currentStorage.close()
@@ -78,65 +93,59 @@ export const StorageProvider: FC<{
   }, [reportError])
 
   const loadStorage = useCallback(
-    async (
-      arrayBuffer: ArrayBuffer,
-      overrideWorkerFactory?: StorageWorkerFactory,
-      overrideSqliteWasmUrl?: string,
-      overrideSqliteWasmBuffer?: ArrayBuffer
-    ) => {
-      if (!mountedRef.current || loadingRef.current) {
+    async (arrayBuffer: ArrayBuffer, options: StorageOpenOptions = {}) => {
+      const session = sessionRef.current
+      if (session.loading) {
         return
       }
-      if (storageRef.current !== null) {
+      if (session.storage !== null) {
         reportError(new Error("Storage is already open"))
         return
       }
 
-      loadingRef.current = true
-      const generation = ++generationRef.current
+      session.loading = true
+      const generation = ++session.generation
       setLoading(true)
       setError(null)
       try {
-        const factory = overrideWorkerFactory ?? workerFactory
+        const factory = options.workerFactory ?? workerFactory
         if (factory === undefined) {
           throw new Error("A storage worker factory is required")
         }
         const nextStorage = await openStorage(
           arrayBuffer,
           factory,
-          overrideSqliteWasmUrl ?? sqliteWasmUrl,
-          overrideSqliteWasmBuffer
+          options.sqliteWasm ?? sqliteWasm
         )
 
-        if (!mountedRef.current || generation !== generationRef.current) {
+        if (generation !== session.generation) {
           await nextStorage.close()
           return
         }
 
-        storageRef.current = nextStorage
+        session.storage = nextStorage
         setStorage(nextStorage)
       } catch (loadError) {
-        if (mountedRef.current && generation === generationRef.current) {
+        if (generation === session.generation) {
           reportError(loadError)
         }
       } finally {
-        loadingRef.current = false
-        if (mountedRef.current && generation === generationRef.current) {
+        session.loading = false
+        if (generation === session.generation) {
           setLoading(false)
         }
       }
     },
-    [reportError, sqliteWasmUrl, workerFactory]
+    [reportError, sqliteWasm, workerFactory]
   )
 
   useEffect(() => {
-    mountedRef.current = true
+    const session = sessionRef.current
     return () => {
-      mountedRef.current = false
-      generationRef.current += 1
-      loadingRef.current = false
-      const currentStorage = storageRef.current
-      storageRef.current = null
+      session.generation += 1
+      session.loading = false
+      const currentStorage = session.storage
+      session.storage = null
       if (currentStorage !== null) {
         void currentStorage.close().catch(() => {})
       }

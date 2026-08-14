@@ -9,6 +9,10 @@ import type {
   StorageWorkerResultMap,
 } from "./worker_protocol"
 
+// Re-exported so that a UI can depend on this subpath alone: importing the
+// package root would pull the SQLite backend into the bundle.
+export type { OptunaStorage } from "./storage"
+
 export type StorageWorker = {
   postMessage: (message: StorageWorkerRequest, transfer: Transferable[]) => void
   addEventListener: (type: string, listener: (event: Event) => void) => void
@@ -22,6 +26,12 @@ export type StorageWorkerHandle = {
 }
 
 export type StorageWorkerFactory = () => Promise<StorageWorkerHandle>
+
+// Where the storage Worker takes sqlite-wasm from. The two are exclusive: a URL
+// is fetched by sqlite-wasm itself, bytes are transferred to the Worker. Bytes
+// are what a VS Code Webview needs, where the Worker cannot fetch extension
+// assets itself.
+export type SQLiteWasmSource = { url: string } | { buffer: ArrayBuffer }
 
 export class StorageWorkerError extends Error {
   readonly code: string
@@ -48,7 +58,7 @@ export class StorageWorkerClient implements OptunaStorage {
   private nextRequestId = 0
   private readonly pending = new Map<number, PendingRequest>()
   private readonly handle: StorageWorkerHandle
-  private openPromise!: Promise<OpenStorageResult>
+  private readonly openPromise: Promise<OpenStorageResult>
   private closePromise: Promise<void> | null = null
   private openResult: OpenStorageResult | null = null
   private disposed = false
@@ -88,28 +98,42 @@ export class StorageWorkerClient implements OptunaStorage {
     this.fail(new StorageWorkerError("worker_failed", message))
   }
 
-  private constructor(handle: StorageWorkerHandle) {
+  private constructor(
+    handle: StorageWorkerHandle,
+    buffer: ArrayBuffer,
+    sqliteWasm?: SQLiteWasmSource
+  ) {
     this.handle = handle
     handle.worker.addEventListener("message", this.handleMessage)
     handle.worker.addEventListener("error", this.handleWorkerFailure)
     handle.worker.addEventListener("messageerror", this.handleWorkerFailure)
+
+    const sqliteWasmUrl =
+      sqliteWasm !== undefined && "url" in sqliteWasm
+        ? sqliteWasm.url
+        : undefined
+    const sqliteWasmBuffer =
+      sqliteWasm !== undefined && "buffer" in sqliteWasm
+        ? sqliteWasm.buffer
+        : undefined
+    this.openPromise = this.request(
+      { type: "open", buffer, sqliteWasmUrl, sqliteWasmBuffer },
+      sqliteWasmBuffer === undefined ? [buffer] : [buffer, sqliteWasmBuffer]
+    )
   }
 
   public static async open(
     buffer: ArrayBuffer,
     workerFactory: StorageWorkerFactory,
-    sqliteWasmUrl?: string,
-    sqliteWasmBuffer?: ArrayBuffer
+    sqliteWasm?: SQLiteWasmSource
   ): Promise<StorageWorkerClient> {
-    const client = new StorageWorkerClient(await workerFactory())
-    const openPromise = client.request(
-      { type: "open", buffer, sqliteWasmUrl, sqliteWasmBuffer },
-      sqliteWasmBuffer === undefined ? [buffer] : [buffer, sqliteWasmBuffer]
+    const client = new StorageWorkerClient(
+      await workerFactory(),
+      buffer,
+      sqliteWasm
     )
-    client.openPromise = openPromise
-
     try {
-      client.openResult = await openPromise
+      client.openResult = await client.openPromise
       client.state = "ready"
       return client
     } catch (error) {
@@ -235,13 +259,7 @@ export class StorageWorkerClient implements OptunaStorage {
 export const openStorage = async (
   buffer: ArrayBuffer,
   workerFactory: StorageWorkerFactory,
-  sqliteWasmUrl?: string,
-  sqliteWasmBuffer?: ArrayBuffer
+  sqliteWasm?: SQLiteWasmSource
 ): Promise<StorageWorkerClient> => {
-  return StorageWorkerClient.open(
-    buffer,
-    workerFactory,
-    sqliteWasmUrl,
-    sqliteWasmBuffer
-  )
+  return StorageWorkerClient.open(buffer, workerFactory, sqliteWasm)
 }

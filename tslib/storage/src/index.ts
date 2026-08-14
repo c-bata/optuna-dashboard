@@ -19,6 +19,7 @@ export type {
   StorageWorkerResultMap,
 } from "./worker_protocol.js"
 export type {
+  SQLiteWasmSource,
   StorageWorker,
   StorageWorkerFactory,
   StorageWorkerHandle,

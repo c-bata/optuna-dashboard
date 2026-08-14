@@ -1,4 +1,4 @@
-import type { StorageWorkerFactory } from "@optuna/storage"
+import type { StorageWorkerFactory } from "@optuna/storage/worker-client"
 import React, { FC, useContext, useEffect } from "react"
 import ReactDOM from "react-dom/client"
 import { App } from "./components/App"
@@ -46,12 +46,15 @@ export const AppWrapper: FC = () => {
           const buffer = toArrayBuffer(message.content, "Storage content")
           void (async () => {
             try {
-              await loadStorage(
-                buffer,
-                createWebviewWorkerFactory(message.workerUri),
-                undefined,
-                await fetchAsset(message.sqliteWasmUri, "SQLite wasm")
-              )
+              await loadStorage(buffer, {
+                workerFactory: createWebviewWorkerFactory(message.workerUri),
+                sqliteWasm: {
+                  buffer: await fetchAsset(
+                    message.sqliteWasmUri,
+                    "SQLite wasm"
+                  ),
+                },
+              })
             } catch (error) {
               reportError(error)
             }

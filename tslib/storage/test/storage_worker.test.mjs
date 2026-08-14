@@ -83,8 +83,7 @@ describe("storage worker", () => {
     const storage = await StorageWorkerClient.open(
       await readAsset(sqliteAssetUrl),
       createWorkerFactory(),
-      undefined,
-      await readAsset(sqliteWasmUrl)
+      { buffer: await readAsset(sqliteWasmUrl) }
     )
     try {
       const studies = await storage.getStudies()
