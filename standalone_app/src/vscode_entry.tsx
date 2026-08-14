@@ -35,26 +35,34 @@ type WebviewMessage = {
 }
 
 export const AppWrapper: FC = () => {
-  const { loadStorage } = useContext(StorageContext)
+  const { loadStorage, reportError } = useContext(StorageContext)
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const message = event.data as WebviewMessage
 
       switch (message.type) {
-        case "optunaStorage":
+        case "optunaStorage": {
           console.log("[optuna-dashboard] optunaStorage received", {
             workerUri: message.workerUri,
             sqliteWasmUri: message.sqliteWasmUri,
           })
-          void loadStorage(
-            toArrayBuffer(message.content, "Storage content"),
-            createWebviewWorkerFactory(message.workerUri),
-            message.sqliteWasmUri
-          ).then(() => {
-            console.log("[optuna-dashboard] loadStorage settled")
-          })
+          const buffer = toArrayBuffer(message.content, "Storage content")
+          void (async () => {
+            try {
+              await loadStorage(
+                buffer,
+                createWebviewWorkerFactory(message.workerUri),
+                undefined,
+                await fetchAsset(message.sqliteWasmUri, "SQLite wasm")
+              )
+              console.log("[optuna-dashboard] loadStorage settled")
+            } catch (error) {
+              reportError(error)
+            }
+          })()
           break
+        }
       }
     }
     window.addEventListener("message", handleMessage)
@@ -63,8 +71,20 @@ export const AppWrapper: FC = () => {
     // answers immediately, and a message posted before this point is dropped.
     getVsCodeApi()?.postMessage({ type: "webviewDidLoad" })
     return () => window.removeEventListener("message", handleMessage)
-  }, [loadStorage])
+  }, [loadStorage, reportError])
   return <App />
+}
+
+// Extension assets are served by the Webview's service worker, which does not
+// answer requests coming from a Worker that was started from a blob: URL: those
+// come back with an error status. Everything the storage Worker needs is
+// therefore fetched here, in the document, and handed over as bytes.
+const fetchAsset = async (uri: string, label: string): Promise<ArrayBuffer> => {
+  const response = await fetch(uri)
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ${label}: ${response.status}`)
+  }
+  return response.arrayBuffer()
 }
 
 const createWebviewWorkerFactory = (
