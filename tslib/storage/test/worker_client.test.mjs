@@ -13,6 +13,7 @@ class FakeWorker extends EventTarget {
     if (message.type === "open") {
       this.emitMessage({
         id: message.id,
+        type: message.type,
         ok: true,
         result: { format: "journal", warnings: [] },
       })
@@ -25,6 +26,7 @@ class FakeWorker extends EventTarget {
     if (message.type === "getStudy") {
       this.emitMessage({
         id: message.id,
+        type: message.type,
         ok: true,
         result: {
           id: message.studyId,
@@ -34,7 +36,12 @@ class FakeWorker extends EventTarget {
       })
       return
     }
-    this.emitMessage({ id: message.id, ok: true, result: null })
+    this.emitMessage({
+      id: message.id,
+      type: message.type,
+      ok: true,
+      result: null,
+    })
   }
 
   terminate() {
@@ -92,5 +99,28 @@ describe("StorageWorkerClient", () => {
 
     await assert.rejects(studiesPromise, { code: "worker_failed" })
     await assert.rejects(storage.getStudies(), { code: "invalid_state" })
+  })
+
+  it("rejects a response that answers another request type", async () => {
+    const worker = new FakeWorker()
+    const storage = await StorageWorkerClient.open(
+      new ArrayBuffer(1),
+      async () => ({
+        worker,
+        dispose: () => {},
+      })
+    )
+    const studiesPromise = storage.getStudies()
+    await new Promise((resolve) => queueMicrotask(resolve))
+
+    const held = worker.heldRequests.pop()
+    worker.emitMessage({
+      id: held.id,
+      type: "getStudy",
+      ok: true,
+      result: null,
+    })
+
+    await assert.rejects(studiesPromise, { code: "protocol_mismatch" })
   })
 })

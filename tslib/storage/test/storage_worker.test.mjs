@@ -97,6 +97,24 @@ describe("storage worker", () => {
     }
   })
 
+  it("answers an unsupported request instead of leaving it pending", async () => {
+    const { worker, dispose } = await createWorkerFactory()()
+    try {
+      const response = await new Promise((resolve) => {
+        worker.addEventListener("message", (event) => resolve(event.data), {
+          once: true,
+        })
+        worker.postMessage({ id: 7, type: "bogus" }, [])
+      })
+      assert.equal(response.id, 7)
+      assert.equal(response.ok, false)
+      assert.equal(response.error.code, "unsupported_request")
+    } finally {
+      worker.terminate()
+      dispose()
+    }
+  })
+
   it("reports a missing SQLite wasm asset after transferring the database", async () => {
     await assert.rejects(
       StorageWorkerClient.open(

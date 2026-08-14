@@ -3,8 +3,10 @@ import type { OptunaStorage } from "./storage"
 import type {
   OpenStorageResult,
   StorageWorkerRequest,
-  StorageWorkerRequestWithoutId,
+  StorageWorkerRequestOf,
+  StorageWorkerRequestType,
   StorageWorkerResponse,
+  StorageWorkerResultMap,
 } from "./worker_protocol"
 
 export type StorageWorker = {
@@ -36,7 +38,8 @@ export class StorageWorkerError extends Error {
 type ClientState = "opening" | "ready" | "closing" | "closed" | "failed"
 
 type PendingRequest = {
-  resolve: (value: unknown) => void
+  type: StorageWorkerRequestType
+  resolve: (value: never) => void
   reject: (reason: unknown) => void
 }
 
@@ -58,7 +61,16 @@ export class StorageWorkerClient implements OptunaStorage {
     }
     this.pending.delete(response.id)
     if (response.ok) {
-      pending.resolve(response.result)
+      if (response.type !== pending.type) {
+        pending.reject(
+          new StorageWorkerError(
+            "protocol_mismatch",
+            `Storage worker answered ${pending.type} with ${response.type}`
+          )
+        )
+        return
+      }
+      pending.resolve(response.result as never)
     } else {
       pending.reject(
         new StorageWorkerError(
@@ -90,7 +102,7 @@ export class StorageWorkerClient implements OptunaStorage {
     sqliteWasmBuffer?: ArrayBuffer
   ): Promise<StorageWorkerClient> {
     const client = new StorageWorkerClient(await workerFactory())
-    const openPromise = client.request<OpenStorageResult>(
+    const openPromise = client.request(
       { type: "open", buffer, sqliteWasmUrl, sqliteWasmBuffer },
       sqliteWasmBuffer === undefined ? [buffer] : [buffer, sqliteWasmBuffer]
     )
@@ -112,12 +124,12 @@ export class StorageWorkerClient implements OptunaStorage {
 
   public getStudies = async (): Promise<Optuna.StudySummary[]> => {
     await this.waitUntilReady()
-    return this.request<Optuna.StudySummary[]>({ type: "getStudies" })
+    return this.request({ type: "getStudies" })
   }
 
   public getStudy = async (studyId: number): Promise<Optuna.Study | null> => {
     await this.waitUntilReady()
-    return this.request<Optuna.Study | null>({ type: "getStudy", studyId })
+    return this.request({ type: "getStudy", studyId })
   }
 
   public close = async (): Promise<void> => {
@@ -139,7 +151,7 @@ export class StorageWorkerClient implements OptunaStorage {
       if (this.state === "ready") {
         this.state = "closing"
         try {
-          await this.request<null>({ type: "close" })
+          await this.request({ type: "close" })
         } catch {
           // close must release the client even if the worker already failed.
         }
@@ -162,10 +174,10 @@ export class StorageWorkerClient implements OptunaStorage {
     }
   }
 
-  private request<T>(
-    request: StorageWorkerRequestWithoutId,
+  private request<K extends StorageWorkerRequestType>(
+    request: StorageWorkerRequestOf<K>,
     transfer: Transferable[] = []
-  ): Promise<T> {
+  ): Promise<StorageWorkerResultMap[K]> {
     if (this.state === "closed" || this.state === "failed") {
       return Promise.reject(
         new StorageWorkerError(
@@ -177,9 +189,10 @@ export class StorageWorkerClient implements OptunaStorage {
 
     const id = this.nextRequestId++
     const message = { ...request, id } as StorageWorkerRequest
-    return new Promise<T>((resolve, reject) => {
+    return new Promise<StorageWorkerResultMap[K]>((resolve, reject) => {
       this.pending.set(id, {
-        resolve: (value) => resolve(value as T),
+        type: request.type,
+        resolve: resolve as (value: never) => void,
         reject,
       })
       try {

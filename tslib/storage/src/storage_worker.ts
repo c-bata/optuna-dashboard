@@ -2,7 +2,9 @@ import { JournalFileStorage } from "./journal.js"
 import { SQLite3Storage } from "./sqlite.js"
 import type {
   StorageWorkerRequest,
+  StorageWorkerRequestType,
   StorageWorkerResponse,
+  StorageWorkerResultMap,
 } from "./worker_protocol.js"
 
 // sqlite-wasm tries to install an OPFS VFS while it initializes, which starts a
@@ -49,9 +51,23 @@ const createError = (error: unknown) => {
   }
 }
 
-const postError = (id: number, error: unknown): void => {
+const postResult = <K extends StorageWorkerRequestType>(
+  id: number,
+  type: K,
+  result: StorageWorkerResultMap[K]
+): void => {
   workerScope.postMessage({
     id,
+    type,
+    ok: true,
+    result,
+  } as StorageWorkerResponse)
+}
+
+const postError = (id: number, type: string, error: unknown): void => {
+  workerScope.postMessage({
+    id,
+    type,
     ok: false,
     error: createError(error),
   })
@@ -106,23 +122,18 @@ workerScope.onmessage = async (event) => {
             throw error
           }
           storage = sqliteStorage
-          workerScope.postMessage({
-            id: request.id,
-            ok: true,
-            result: { format: "sqlite3", warnings: [] },
+          postResult(request.id, "open", {
+            format: "sqlite3",
+            warnings: [],
           })
           break
         }
 
         const journalStorage = new JournalFileStorage(request.buffer)
         storage = journalStorage
-        workerScope.postMessage({
-          id: request.id,
-          ok: true,
-          result: {
-            format: "journal",
-            warnings: journalStorage.getErrors(),
-          },
+        postResult(request.id, "open", {
+          format: "journal",
+          warnings: journalStorage.getErrors(),
         })
         break
       }
@@ -130,31 +141,36 @@ workerScope.onmessage = async (event) => {
         if (storage === null) {
           throw new WorkerRequestError("invalid_state", "Storage is not open")
         }
-        workerScope.postMessage({
-          id: request.id,
-          ok: true,
-          result: await storage.getStudies(),
-        })
+        postResult(request.id, "getStudies", await storage.getStudies())
         break
       }
       case "getStudy": {
         if (storage === null) {
           throw new WorkerRequestError("invalid_state", "Storage is not open")
         }
-        workerScope.postMessage({
-          id: request.id,
-          ok: true,
-          result: await storage.getStudy(request.studyId),
-        })
+        postResult(
+          request.id,
+          "getStudy",
+          await storage.getStudy(request.studyId)
+        )
         break
       }
       case "close": {
         await closeStorage()
-        workerScope.postMessage({ id: request.id, ok: true, result: null })
+        postResult(request.id, "close", null)
         break
+      }
+      default: {
+        // `request` is never here as long as every request type is handled.
+        // Answering keeps a client of a different version from waiting forever.
+        const unsupported = request as { id: number; type: string }
+        throw new WorkerRequestError(
+          "unsupported_request",
+          `Unsupported request: ${unsupported.type}`
+        )
       }
     }
   } catch (error) {
-    postError(request.id, error)
+    postError(request.id, request.type, error)
   }
 }

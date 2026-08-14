@@ -10,9 +10,13 @@ export type { SQLiteWasmOptions } from "./sqlite.js"
 export type {
   OpenStorageResult,
   StorageWarning,
+  StorageWorkerErrorPayload,
   StorageWorkerRequest,
+  StorageWorkerRequestOf,
+  StorageWorkerRequestType,
   StorageWorkerRequestWithoutId,
   StorageWorkerResponse,
+  StorageWorkerResultMap,
 } from "./worker_protocol.js"
 export type {
   StorageWorker,
