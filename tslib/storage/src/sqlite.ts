@@ -1,5 +1,5 @@
 import * as Optuna from "@optuna/types"
-import sqlite3InitModule from "./sqlite-init.js"
+import sqlite3InitModule from "./sqlite_init.js"
 import { OptunaStorage } from "./storage"
 
 export type SQLiteWasmOptions = {

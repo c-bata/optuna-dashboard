@@ -11,12 +11,12 @@
       "import": "./pkg/index.js"
     },
     "./worker-client": {
-      "types": "./pkg/worker-client.d.ts",
-      "import": "./pkg/worker-client.js"
+      "types": "./pkg/worker_client.d.ts",
+      "import": "./pkg/worker_client.js"
     },
     "./sqlite-wasm": {
-      "types": "./pkg/sqlite-wasm.d.ts",
-      "import": "./pkg/sqlite-wasm.js"
+      "types": "./pkg/sqlite_wasm.d.ts",
+      "import": "./pkg/sqlite_wasm.js"
     }
   },
   "scripts": {
