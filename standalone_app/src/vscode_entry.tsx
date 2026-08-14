@@ -43,10 +43,6 @@ export const AppWrapper: FC = () => {
 
       switch (message.type) {
         case "optunaStorage": {
-          console.log("[optuna-dashboard] optunaStorage received", {
-            workerUri: message.workerUri,
-            sqliteWasmUri: message.sqliteWasmUri,
-          })
           const buffer = toArrayBuffer(message.content, "Storage content")
           void (async () => {
             try {
@@ -56,7 +52,6 @@ export const AppWrapper: FC = () => {
                 undefined,
                 await fetchAsset(message.sqliteWasmUri, "SQLite wasm")
               )
-              console.log("[optuna-dashboard] loadStorage settled")
             } catch (error) {
               reportError(error)
             }
@@ -66,7 +61,6 @@ export const AppWrapper: FC = () => {
       }
     }
     window.addEventListener("message", handleMessage)
-    console.log("[optuna-dashboard] posting webviewDidLoad")
     // Ask for the storage only once the listener is in place. The extension
     // answers immediately, and a message posted before this point is dropped.
     getVsCodeApi()?.postMessage({ type: "webviewDidLoad" })

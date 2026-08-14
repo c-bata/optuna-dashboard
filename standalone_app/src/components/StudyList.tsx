@@ -52,7 +52,6 @@ export const StudyList: FC<{
       }
       try {
         const studies = await storage.getStudies()
-        console.log("[optuna-dashboard] getStudies returned", studies.length)
         if (active) {
           setStudies(studies)
         }

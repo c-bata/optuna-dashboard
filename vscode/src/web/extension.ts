@@ -43,8 +43,7 @@ export function activate(context: vscode.ExtensionContext) {
         switch (message.type) {
           case "webviewDidLoad": {
             try {
-              console.log("[optuna-dashboard] webviewDidLoad received")
-              const delivered = await panel.webview.postMessage({
+              await panel.webview.postMessage({
                 type: "optunaStorage",
                 content: toArrayBuffer(await readFile(fileUri)),
                 workerUri: panel.webview
@@ -58,7 +57,6 @@ export function activate(context: vscode.ExtensionContext) {
                   .asWebviewUri(sqliteWasmUri)
                   .toString(),
               })
-              console.log("[optuna-dashboard] optunaStorage posted", delivered)
             } catch (error: unknown) {
               console.error("Failed to load Optuna storage", error)
             }
