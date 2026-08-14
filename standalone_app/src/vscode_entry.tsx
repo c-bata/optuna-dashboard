@@ -5,6 +5,20 @@ import { App } from "./components/App"
 import { StorageContext, StorageProvider } from "./components/StorageProvider"
 import "./index.css"
 
+declare function acquireVsCodeApi(): {
+  postMessage: (message: unknown) => void
+}
+
+// acquireVsCodeApi() may only be called once per Webview, so memoize it outside
+// of the component: StrictMode mounts the effect below twice.
+let vscodeApi: ReturnType<typeof acquireVsCodeApi> | null = null
+const getVsCodeApi = (): ReturnType<typeof acquireVsCodeApi> => {
+  if (vscodeApi === null) {
+    vscodeApi = acquireVsCodeApi()
+  }
+  return vscodeApi
+}
+
 type WebviewMessage = {
   type: "optunaStorage"
   content: unknown
@@ -30,6 +44,9 @@ export const AppWrapper: FC = () => {
       }
     }
     window.addEventListener("message", handleMessage)
+    // Ask for the storage only once the listener is in place. The extension
+    // answers immediately, and a message posted before this point is dropped.
+    getVsCodeApi().postMessage({ type: "webviewDidLoad" })
     return () => window.removeEventListener("message", handleMessage)
   }, [loadStorage])
   return <App />

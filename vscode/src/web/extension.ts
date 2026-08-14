@@ -89,38 +89,21 @@ function toArrayBuffer(content: Uint8Array): ArrayBuffer {
 }
 
 function getWebviewContent(indexJsUri: vscode.Uri, cspSource: string): string {
-  const nonce = getNonce()
+  // 'webviewDidLoad' is posted by the bundle once it listens for messages, so
+  // that the storage cannot be sent before anything can receive it.
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <title>Optuna Dashboard (Wasm ver.)</title>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src ${cspSource} 'nonce-${nonce}' 'wasm-unsafe-eval'; worker-src blob:; connect-src ${cspSource}; style-src ${cspSource} 'unsafe-inline';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src ${cspSource} 'wasm-unsafe-eval'; worker-src blob:; connect-src ${cspSource}; img-src ${cspSource} data: blob:; style-src ${cspSource} 'unsafe-inline';">
   <script type="module" crossorigin src="${indexJsUri}"></script>
-  <script nonce="${nonce}">
-    (function() {
-      const vscodeApi = acquireVsCodeApi();
-      window.addEventListener('DOMContentLoaded', (event) => {
-        vscodeApi.postMessage({ type: 'webviewDidLoad' })
-      })
-    }())
-  </script>
 </head>
 <body>
   <div id="root"></div>
 </body>
 </html>
 `
-}
-
-function getNonce(): string {
-  const characters =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-  let nonce = ""
-  for (let index = 0; index < 32; index++) {
-    nonce += characters.charAt(Math.floor(Math.random() * characters.length))
-  }
-  return nonce
 }
 
 export function deactivate() {}
