@@ -96,7 +96,7 @@ function getWebviewContent(indexJsUri: vscode.Uri, cspSource: string): string {
 <head>
   <meta charset="utf-8" />
   <title>Optuna Dashboard (Wasm ver.)</title>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src ${cspSource} 'wasm-unsafe-eval'; worker-src blob:; connect-src ${cspSource}; img-src ${cspSource} data: blob:; style-src ${cspSource} 'unsafe-inline';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src ${cspSource} 'wasm-unsafe-eval'; worker-src blob:; connect-src ${cspSource}; img-src ${cspSource} data: blob:; font-src ${cspSource}; style-src ${cspSource} 'unsafe-inline';">
   <script type="module" crossorigin src="${indexJsUri}"></script>
 </head>
 <body>
