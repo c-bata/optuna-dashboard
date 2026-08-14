@@ -52,6 +52,9 @@ export class SQLite3Storage implements OptunaStorage {
   private closed = false
   constructor(arrayBuffer: ArrayBuffer, options: SQLiteWasmOptions = {}) {
     this.db = this.initDB(arrayBuffer, options)
+    // A failed open is closed without ever being queried, so keep a rejection
+    // handler attached to avoid an unhandled rejection in the meantime.
+    this.db.catch(() => {})
     this.summaries_cache = null
   }
 
@@ -143,8 +146,13 @@ export class SQLite3Storage implements OptunaStorage {
       return
     }
     this.closed = true
-    const db = await this.db
-    db.close()
+    try {
+      const db = await this.db
+      db.close()
+    } catch {
+      // close() is idempotent and never fails. An initialization failure was
+      // already handed to whoever awaited the storage.
+    }
   }
 }
 

@@ -118,7 +118,7 @@ workerScope.onmessage = async (event) => {
           try {
             await sqliteStorage.waitUntilReady()
           } catch (error) {
-            await sqliteStorage.close().catch(() => {})
+            await sqliteStorage.close()
             throw error
           }
           storage = sqliteStorage
