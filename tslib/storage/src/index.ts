@@ -21,7 +21,14 @@ export {
   StorageWorkerClient,
   StorageWorkerError,
 } from "./worker_client.js"
-export type { OptunaStorage } from "./storage.js"
+export type {
+  EditableOptunaStorage,
+  OptunaStorage,
+  StorageCapabilities,
+  StorageEdit,
+  StorageEditResult,
+  StudyDirection,
+} from "./storage.js"
 export type { SQLiteWasmOptions } from "./sqlite.js"
 // The request and response types stay internal: they describe the wire between
 // the client and the Worker, and a consumer that reaches for them is talking to

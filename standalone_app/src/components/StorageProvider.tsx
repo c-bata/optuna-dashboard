@@ -1,6 +1,9 @@
 import {
-  type OptunaStorage,
+  type EditableOptunaStorage,
   type SQLiteWasmSource,
+  type StorageCapabilities,
+  type StorageEdit,
+  type StorageEditResult,
   type StorageWorkerFactory,
   openStorage,
 } from "@optuna/storage/worker-client"
@@ -19,16 +22,22 @@ export type StorageOpenOptions = {
   name?: string
   workerFactory?: StorageWorkerFactory
   sqliteWasm?: SQLiteWasmSource
+  readOnlyReason?: string
 }
 
 export const StorageContext = createContext<{
-  storage: OptunaStorage | null
+  storage: EditableOptunaStorage | null
   storageName: string | null
   loadStorage: (
     arrayBuffer: ArrayBuffer,
     options?: StorageOpenOptions
   ) => Promise<void>
   closeStorage: () => Promise<void>
+  applyEdit: (edit: StorageEdit) => Promise<void>
+  downloadStorage: () => void
+  capabilities: StorageCapabilities
+  editRevision: number
+  dirty: boolean
   loading: boolean
   error: Error | null
   reportError: (error: unknown) => void
@@ -37,6 +46,11 @@ export const StorageContext = createContext<{
   storageName: null,
   loadStorage: async () => {},
   closeStorage: async () => {},
+  applyEdit: async () => {},
+  downloadStorage: () => {},
+  capabilities: { editable: false },
+  editRevision: 0,
+  dirty: false,
   loading: false,
   error: null,
   reportError: () => {},
@@ -51,7 +65,7 @@ export const StorageContext = createContext<{
 // storage it just opened instead of publishing it.
 type StorageSession = {
   generation: number
-  storage: OptunaStorage | null
+  storage: EditableOptunaStorage | null
   loading: boolean
 }
 
@@ -59,11 +73,20 @@ export const StorageProvider: FC<{
   children: React.ReactNode
   workerFactory?: StorageWorkerFactory
   sqliteWasm?: SQLiteWasmSource
-}> = ({ children, workerFactory, sqliteWasm }) => {
-  const [storage, setActiveStorage] = useState<OptunaStorage | null>(null)
+  onStorageChange?: (result: StorageEditResult) => Promise<void>
+}> = ({ children, workerFactory, sqliteWasm, onStorageChange }) => {
+  const [storage, setActiveStorage] = useState<EditableOptunaStorage | null>(
+    null
+  )
   const [storageName, setStorageName] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
+  const [capabilities, setCapabilities] = useState<StorageCapabilities>({
+    editable: false,
+  })
+  const [editRevision, setEditRevision] = useState(0)
+  const [dirty, setDirty] = useState(false)
+  const [currentBytes, setCurrentBytes] = useState<ArrayBuffer | null>(null)
   const sessionRef = useRef<StorageSession>({
     generation: 0,
     storage: null,
@@ -90,6 +113,10 @@ export const StorageProvider: FC<{
     setStorageName(null)
     setLoading(false)
     setError(null)
+    setCapabilities({ editable: false })
+    setEditRevision(0)
+    setDirty(false)
+    setCurrentBytes(null)
     if (currentStorage !== null) {
       try {
         await currentStorage.close()
@@ -133,6 +160,14 @@ export const StorageProvider: FC<{
         session.storage = nextStorage
         setActiveStorage(nextStorage)
         setStorageName(options.name ?? null)
+        setCapabilities(
+          options.readOnlyReason === undefined
+            ? nextStorage.getCapabilities()
+            : { editable: false, readOnlyReason: options.readOnlyReason }
+        )
+        setEditRevision(0)
+        setDirty(false)
+        setCurrentBytes(null)
       } catch (loadError) {
         if (generation === session.generation) {
           reportError(loadError)
@@ -146,6 +181,58 @@ export const StorageProvider: FC<{
     },
     [reportError, sqliteWasm, workerFactory]
   )
+
+  const applyEdit = useCallback(
+    async (edit: StorageEdit) => {
+      const currentStorage = sessionRef.current.storage
+      if (currentStorage === null) {
+        throw new Error("Storage is not open")
+      }
+      if (!capabilities.editable) {
+        throw new Error(capabilities.readOnlyReason ?? "Storage is read-only")
+      }
+      try {
+        const result = await currentStorage.applyEdit(edit)
+        if (onStorageChange !== undefined) {
+          await onStorageChange(result)
+        }
+        setCurrentBytes(result.buffer.slice(0))
+        setEditRevision(result.revision)
+        setDirty(true)
+      } catch (editError) {
+        reportError(editError)
+        throw editError
+      }
+    },
+    [capabilities, onStorageChange, reportError]
+  )
+
+  const downloadStorage = useCallback(() => {
+    if (currentBytes === null) {
+      return
+    }
+    const url = URL.createObjectURL(
+      new Blob([currentBytes], { type: "application/octet-stream" })
+    )
+    const anchor = document.createElement("a")
+    anchor.href = url
+    anchor.download = storageName ?? "optuna-storage"
+    anchor.click()
+    URL.revokeObjectURL(url)
+    setDirty(false)
+  }, [currentBytes, storageName])
+
+  useEffect(() => {
+    if (!dirty || IS_VSCODE) {
+      return
+    }
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ""
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [dirty])
 
   useEffect(() => {
     const session = sessionRef.current
@@ -167,6 +254,11 @@ export const StorageProvider: FC<{
         storageName,
         loadStorage,
         closeStorage,
+        applyEdit,
+        downloadStorage,
+        capabilities,
+        editRevision,
+        dirty,
         loading,
         error,
         reportError,

@@ -34,12 +34,16 @@ import type {
 
 type WorkerScope = {
   onmessage: (event: MessageEvent<StorageWorkerRequest>) => void
-  postMessage: (message: StorageWorkerResponse) => void
+  postMessage: (
+    message: StorageWorkerResponse,
+    transfer?: Transferable[]
+  ) => void
 }
 
 type WorkerStorage = JournalFileStorage | SQLite3Storage
 
 let storage: WorkerStorage | null = null
+let revision = 0
 
 const workerScope = self as unknown as WorkerScope
 
@@ -70,14 +74,18 @@ const createError = (error: unknown) => {
 const postResult = <K extends StorageWorkerRequestType>(
   id: number,
   type: K,
-  result: StorageWorkerResultMap[K]
+  result: StorageWorkerResultMap[K],
+  transfer: Transferable[] = []
 ): void => {
-  workerScope.postMessage({
-    id,
-    type,
-    ok: true,
-    result,
-  } as StorageWorkerResponse)
+  workerScope.postMessage(
+    {
+      id,
+      type,
+      ok: true,
+      result,
+    } as StorageWorkerResponse,
+    transfer
+  )
 }
 
 const postError = (id: number, type: string, error: unknown): void => {
@@ -103,11 +111,10 @@ const closeStorage = async (): Promise<void> => {
   if (currentStorage !== null) {
     await currentStorage.close()
   }
+  revision = 0
 }
 
-workerScope.onmessage = async (event) => {
-  const request = event.data
-
+const handleRequest = async (request: StorageWorkerRequest): Promise<void> => {
   try {
     switch (request.type) {
       case "open": {
@@ -150,9 +157,13 @@ workerScope.onmessage = async (event) => {
             throw error
           }
           storage = sqliteStorage
+          const schemaVersion = await sqliteStorage.getSchemaVersion()
           postResult(request.id, "open", {
             format: "sqlite3",
             warnings: [],
+            capabilities: await sqliteStorage.getEditCapabilities(),
+            revision,
+            schemaVersion,
           })
           break
         }
@@ -175,6 +186,8 @@ workerScope.onmessage = async (event) => {
         postResult(request.id, "open", {
           format: "journal",
           warnings,
+          capabilities: journalStorage.getCapabilities(),
+          revision,
         })
         break
       }
@@ -196,6 +209,21 @@ workerScope.onmessage = async (event) => {
         )
         break
       }
+      case "applyEdit": {
+        if (storage === null) {
+          throw new WorkerRequestError("invalid_state", "Storage is not open")
+        }
+        if (request.expectedRevision !== revision) {
+          throw new WorkerRequestError(
+            "revision_conflict",
+            `Expected revision ${request.expectedRevision}, current revision is ${revision}`
+          )
+        }
+        const buffer = await storage.applyEdit(request.edit)
+        revision++
+        postResult(request.id, "applyEdit", { revision, buffer }, [buffer])
+        break
+      }
       case "close": {
         await closeStorage()
         postResult(request.id, "close", null)
@@ -214,4 +242,13 @@ workerScope.onmessage = async (event) => {
   } catch (error) {
     postError(request.id, request.type, error)
   }
+}
+
+// Requests that mutate or serialize storage must be observed in arrival order.
+// Keeping every request in the same queue also makes reads deterministic around
+// an edit and prevents close from racing an export.
+let requestQueue = Promise.resolve()
+workerScope.onmessage = (event) => {
+  const request = event.data
+  requestQueue = requestQueue.then(() => handleRequest(request))
 }

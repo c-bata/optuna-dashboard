@@ -1,4 +1,7 @@
-import type { StorageWorkerFactory } from "@optuna/storage/worker-client"
+import type {
+  StorageEditResult,
+  StorageWorkerFactory,
+} from "@optuna/storage/worker-client"
 import React, { FC, useContext, useEffect } from "react"
 import ReactDOM from "react-dom/client"
 import { App } from "./components/App"
@@ -29,27 +32,73 @@ const getVsCodeApi = (): ReturnType<typeof acquireVsCodeApi> | null => {
 type WebviewMessage = {
   type: "optunaStorage"
   content: unknown
+  name?: string
+  readOnlyReason?: string
   workerUri: string
   sqliteWasmUri: string
 }
 
+type ReloadMessage = {
+  type: "reloadStorage"
+  content: unknown
+  readOnlyReason?: string
+}
+
+type ChangeResultMessage = {
+  type: "documentChangeAccepted" | "documentChangeRejected"
+  revision: number
+  message?: string
+  content?: unknown
+}
+
+const pendingChanges = new Map<
+  number,
+  { resolve: () => void; reject: (error: Error) => void }
+>()
+
+const sendStorageChange = (result: StorageEditResult): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    const api = getVsCodeApi()
+    if (api === null) {
+      reject(new Error("VS Code API is unavailable"))
+      return
+    }
+    pendingChanges.set(result.revision, { resolve, reject })
+    api.postMessage({
+      type: "documentChanged",
+      revision: result.revision,
+      content: result.buffer,
+    })
+  })
+}
+
 export const AppWrapper: FC = () => {
-  const { loadStorage, reportError } = useContext(StorageContext)
+  const { loadStorage, closeStorage, reportError } = useContext(StorageContext)
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      const message = event.data as WebviewMessage
+      const message = event.data as
+        | WebviewMessage
+        | ReloadMessage
+        | ChangeResultMessage
 
       switch (message.type) {
         case "optunaStorage": {
           const buffer = toArrayBuffer(message.content)
           void (async () => {
             try {
+              const storageMessage = message as WebviewMessage
+              documentWorkerUri = storageMessage.workerUri
+              documentWasmUri = storageMessage.sqliteWasmUri
               await loadStorage(buffer, {
-                workerFactory: createWebviewWorkerFactory(message.workerUri),
+                name: storageMessage.name,
+                readOnlyReason: storageMessage.readOnlyReason,
+                workerFactory: createWebviewWorkerFactory(
+                  storageMessage.workerUri
+                ),
                 sqliteWasm: {
                   buffer: await fetchAsset(
-                    message.sqliteWasmUri,
+                    storageMessage.sqliteWasmUri,
                     "SQLite wasm"
                   ),
                 },
@@ -60,16 +109,72 @@ export const AppWrapper: FC = () => {
           })()
           break
         }
+        case "reloadStorage": {
+          const reloadMessage = message as ReloadMessage
+          void (async () => {
+            try {
+              const workerUri = documentWorkerUri
+              const wasmUri = documentWasmUri
+              if (workerUri === null || wasmUri === null) {
+                throw new Error("Storage assets are not initialized")
+              }
+              await closeStorage()
+              await loadStorage(toArrayBuffer(reloadMessage.content), {
+                readOnlyReason: reloadMessage.readOnlyReason,
+                workerFactory: createWebviewWorkerFactory(workerUri),
+                sqliteWasm: {
+                  buffer: await fetchAsset(wasmUri, "SQLite wasm"),
+                },
+              })
+            } catch (error) {
+              reportError(error)
+            }
+          })()
+          break
+        }
+        case "documentChangeAccepted": {
+          const resultMessage = message as ChangeResultMessage
+          pendingChanges.get(resultMessage.revision)?.resolve()
+          pendingChanges.delete(resultMessage.revision)
+          break
+        }
+        case "documentChangeRejected": {
+          const resultMessage = message as ChangeResultMessage
+          pendingChanges
+            .get(resultMessage.revision)
+            ?.reject(
+              new Error(resultMessage.message ?? "Document update failed")
+            )
+          pendingChanges.delete(resultMessage.revision)
+          if (resultMessage.content !== undefined) {
+            window.dispatchEvent(
+              new MessageEvent("message", {
+                data: {
+                  type: "reloadStorage",
+                  content: resultMessage.content,
+                } satisfies ReloadMessage,
+              })
+            )
+          }
+          break
+        }
       }
     }
     window.addEventListener("message", handleMessage)
     // Ask for the storage only once the listener is in place. The extension
     // answers immediately, and a message posted before this point is dropped.
-    getVsCodeApi()?.postMessage({ type: "webviewDidLoad" })
+    if (!storageRequested) {
+      storageRequested = true
+      getVsCodeApi()?.postMessage({ type: "webviewDidLoad" })
+    }
     return () => window.removeEventListener("message", handleMessage)
-  }, [loadStorage, reportError])
+  }, [closeStorage, loadStorage, reportError])
   return <App />
 }
+
+let documentWorkerUri: string | null = null
+let documentWasmUri: string | null = null
+let storageRequested = false
 
 // Extension assets are served by the Webview's service worker, which does not
 // answer a request coming from a Worker that was started from a blob: URL: those
@@ -139,7 +244,7 @@ const toArrayBuffer = (content: unknown): ArrayBuffer => {
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <StorageProvider>
+    <StorageProvider onStorageChange={sendStorageChange}>
       <AppWrapper />
     </StorageProvider>
   </React.StrictMode>

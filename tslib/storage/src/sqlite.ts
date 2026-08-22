@@ -1,6 +1,6 @@
 import * as Optuna from "@optuna/types"
 import sqlite3InitModule from "./sqlite_init.js"
-import { OptunaStorage } from "./storage"
+import type { OptunaStorage, StorageCapabilities, StorageEdit } from "./storage"
 
 // Where to take sqlite3.wasm from.
 //
@@ -57,20 +57,68 @@ const isDistributionEqual = (
 }
 
 type SQLite3DB = {
+  pointer: number
   exec(options: {
     sql: string
+    bind?: (string | number | null)[]
     // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-    callback: (...args: any[]) => void
+    callback?: (...args: any[]) => void
   }): void
   close(): void
 }
+
+type SQLite3Api = {
+  capi: {
+    SQLITE_DESERIALIZE_FREEONCLOSE: number
+    SQLITE_DESERIALIZE_RESIZEABLE: number
+    sqlite3_deserialize: (
+      pointer: number,
+      schema: string,
+      data: number,
+      size: number,
+      bufferSize: number,
+      flags: number
+    ) => number
+    sqlite3_js_db_export: (pointer: number) => Uint8Array
+  }
+}
+
+const isWalDatabase = (buffer: ArrayBuffer): boolean => {
+  if (buffer.byteLength < 20) {
+    return false
+  }
+  const header = new Uint8Array(buffer)
+  return header[18] === 2 || header[19] === 2
+}
+
+const normalizeWalHeader = (buffer: ArrayBuffer): ArrayBuffer => {
+  if (!isWalDatabase(buffer)) {
+    return buffer
+  }
+  const copy = new Uint8Array(buffer).slice()
+  copy[18] = 1
+  copy[19] = 1
+  return copy.buffer
+}
+
+const EDITABLE_SCHEMA_VERSIONS = new Set([
+  "v2.6.0.a",
+  "v3.0.0.a",
+  "v3.0.0.b",
+  "v3.0.0.c",
+  "v3.0.0.d",
+  "v3.2.0.a",
+])
 
 export class SQLite3Storage implements OptunaStorage {
   db: Promise<SQLite3DB>
   summaries_cache: Optuna.StudySummary[] | null
   private closed = false
+  private sqlite3: SQLite3Api | null = null
+  private readonly wasWal: boolean
   constructor(arrayBuffer: ArrayBuffer, options: SQLiteWasmOptions = {}) {
-    this.db = this.initDB(arrayBuffer, options)
+    this.wasWal = isWalDatabase(arrayBuffer)
+    this.db = this.initDB(normalizeWalHeader(arrayBuffer), options)
     // A failed open is closed without ever being queried, so keep a rejection
     // handler attached to avoid an unhandled rejection in the meantime.
     this.db.catch(() => {})
@@ -105,20 +153,24 @@ export class SQLite3Storage implements OptunaStorage {
         path === "sqlite3.wasm" ? (options.sqliteWasmUrl as string) : path
     }
 
-    const sqlite3 = await sqlite3InitModule(initOptions)
+    const sqlite3 = (await sqlite3InitModule(initOptions)) as SQLite3Api & {
+      wasm: { allocFromTypedArray: (value: ArrayBuffer) => number }
+      oo1: { DB: new () => SQLite3DB & { checkRc: (rc: number) => void } }
+    }
+    this.sqlite3 = sqlite3
     let db: SQLite3DB | null = null
     try {
       const p = sqlite3.wasm.allocFromTypedArray(arrayBuffer)
       const sqliteDb = new sqlite3.oo1.DB()
       db = sqliteDb
       const rc = sqlite3.capi.sqlite3_deserialize(
-        // @ts-ignore
         sqliteDb.pointer,
         "main",
         p,
         arrayBuffer.byteLength,
         arrayBuffer.byteLength,
-        sqlite3.capi.SQLITE_DESERIALIZE_FREEONCLOSE
+        sqlite3.capi.SQLITE_DESERIALIZE_FREEONCLOSE |
+          sqlite3.capi.SQLITE_DESERIALIZE_RESIZEABLE
       )
       sqliteDb.checkRc(rc)
       return sqliteDb
@@ -151,6 +203,76 @@ export class SQLite3Storage implements OptunaStorage {
       },
     })
     return tables === 2
+  }
+
+  getSchemaVersion = async (): Promise<string> => {
+    return getSchemaVersion(await this.db)
+  }
+
+  getCapabilities = (): StorageCapabilities => {
+    if (this.wasWal) {
+      return {
+        editable: false,
+        readOnlyReason:
+          "WAL-mode SQLite databases can be viewed but not edited safely",
+      }
+    }
+    return { editable: true }
+  }
+
+  getEditCapabilities = async (): Promise<StorageCapabilities> => {
+    const base = this.getCapabilities()
+    if (!base.editable) {
+      return base
+    }
+    const schemaVersion = await this.getSchemaVersion()
+    if (!EDITABLE_SCHEMA_VERSIONS.has(schemaVersion)) {
+      return {
+        editable: false,
+        readOnlyReason: `SQLite schema ${
+          schemaVersion || "unknown"
+        } is not supported for editing`,
+      }
+    }
+    return base
+  }
+
+  applyEdit = async (edit: StorageEdit): Promise<ArrayBuffer> => {
+    if (this.closed) {
+      throw new Error("Storage is closed")
+    }
+    const capabilities = await this.getEditCapabilities()
+    if (!capabilities.editable) {
+      throw new Error(capabilities.readOnlyReason ?? "Storage is read-only")
+    }
+    const db = await this.db
+    db.exec({ sql: "BEGIN IMMEDIATE" })
+    try {
+      if (edit.kind === "createStudy") {
+        createStudy(db, edit.name, edit.directions)
+      } else {
+        deleteStudy(db, edit.studyId)
+      }
+      db.exec({ sql: "COMMIT" })
+    } catch (error) {
+      try {
+        db.exec({ sql: "ROLLBACK" })
+      } catch {
+        // Preserve the edit error.
+      }
+      throw error
+    }
+    this.summaries_cache = null
+    return await this.exportFile()
+  }
+
+  exportFile = async (): Promise<ArrayBuffer> => {
+    if (this.closed || this.sqlite3 === null) {
+      throw new Error("Storage is closed")
+    }
+    const db = await this.db
+    const exported = this.sqlite3.capi.sqlite3_js_db_export(db.pointer)
+    return exported.slice().buffer as ArrayBuffer
   }
 
   getStudies = async (): Promise<Optuna.StudySummary[]> => {
@@ -230,6 +352,124 @@ const isGreaterSchemaVersion = (
   const right = Number(rightVersion_)
   if (left === right) return leftSuffix > rightSuffix
   return left > right
+}
+
+const queryExists = (
+  db: SQLite3DB,
+  sql: string,
+  bind: (string | number | null)[]
+): boolean => {
+  let exists = false
+  db.exec({
+    sql,
+    bind,
+    callback: () => {
+      exists = true
+    },
+  })
+  return exists
+}
+
+const tableExists = (db: SQLite3DB, table: string): boolean => {
+  return queryExists(
+    db,
+    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
+    [table]
+  )
+}
+
+const createStudy = (
+  db: SQLite3DB,
+  name: string,
+  directions: ("minimize" | "maximize")[]
+): void => {
+  if (name.trim() === "") {
+    throw new Error("Study name must not be empty")
+  }
+  if (directions.length === 0) {
+    throw new Error("At least one study direction is required")
+  }
+  if (
+    directions.some(
+      (direction) => direction !== "minimize" && direction !== "maximize"
+    )
+  ) {
+    throw new Error("Invalid study direction")
+  }
+  if (
+    queryExists(db, "SELECT 1 FROM studies WHERE study_name = ? LIMIT 1", [
+      name,
+    ])
+  ) {
+    throw new Error(`A study named '${name}' already exists`)
+  }
+  db.exec({ sql: "INSERT INTO studies (study_name) VALUES (?)", bind: [name] })
+  let studyId: number | null = null
+  db.exec({
+    sql: "SELECT last_insert_rowid()",
+    callback: (values: unknown[]) => {
+      studyId = Number(values[0])
+    },
+  })
+  if (studyId === null) {
+    throw new Error("Failed to obtain the new study ID")
+  }
+  directions.forEach((direction, objective) => {
+    db.exec({
+      sql:
+        "INSERT INTO study_directions (direction, study_id, objective)" +
+        " VALUES (?, ?, ?)",
+      bind: [
+        direction === "minimize" ? "MINIMIZE" : "MAXIMIZE",
+        studyId,
+        objective,
+      ],
+    })
+  })
+}
+
+const deleteStudy = (db: SQLite3DB, studyId: number): void => {
+  if (!Number.isSafeInteger(studyId)) {
+    throw new Error("Invalid study ID")
+  }
+  if (
+    !queryExists(db, "SELECT 1 FROM studies WHERE study_id = ? LIMIT 1", [
+      studyId,
+    ])
+  ) {
+    throw new Error(`Study ${studyId} does not exist`)
+  }
+
+  const trialTables = [
+    "trial_values",
+    "trial_params",
+    "trial_user_attributes",
+    "trial_system_attributes",
+    "trial_intermediate_values",
+    "trial_heartbeats",
+  ]
+  for (const table of trialTables) {
+    if (tableExists(db, table)) {
+      db.exec({
+        sql: `DELETE FROM ${table} WHERE trial_id IN (SELECT trial_id FROM trials WHERE study_id = ?)`,
+        bind: [studyId],
+      })
+    }
+  }
+  db.exec({ sql: "DELETE FROM trials WHERE study_id = ?", bind: [studyId] })
+  for (const table of [
+    "study_directions",
+    "study_user_attributes",
+    "study_system_attributes",
+  ]) {
+    if (tableExists(db, table)) {
+      db.exec({
+        sql: `DELETE FROM ${table} WHERE study_id = ?`,
+        bind: [studyId],
+      })
+    }
+  }
+  db.exec({ sql: "DELETE FROM studies WHERE study_id = ?", bind: [studyId] })
 }
 
 const getStudySummaries = (db: SQLite3DB): Optuna.StudySummary[] => {
