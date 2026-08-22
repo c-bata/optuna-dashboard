@@ -43,7 +43,6 @@ type WorkerScope = {
 type WorkerStorage = JournalFileStorage | SQLite3Storage
 
 let storage: WorkerStorage | null = null
-let revision = 0
 
 const workerScope = self as unknown as WorkerScope
 
@@ -111,7 +110,6 @@ const closeStorage = async (): Promise<void> => {
   if (currentStorage !== null) {
     await currentStorage.close()
   }
-  revision = 0
 }
 
 const handleRequest = async (request: StorageWorkerRequest): Promise<void> => {
@@ -157,13 +155,10 @@ const handleRequest = async (request: StorageWorkerRequest): Promise<void> => {
             throw error
           }
           storage = sqliteStorage
-          const schemaVersion = await sqliteStorage.getSchemaVersion()
           postResult(request.id, "open", {
             format: "sqlite3",
             warnings: [],
-            capabilities: await sqliteStorage.getEditCapabilities(),
-            revision,
-            schemaVersion,
+            editDisabledReason: await sqliteStorage.getEditDisabledReason(),
           })
           break
         }
@@ -186,8 +181,7 @@ const handleRequest = async (request: StorageWorkerRequest): Promise<void> => {
         postResult(request.id, "open", {
           format: "journal",
           warnings,
-          capabilities: journalStorage.getCapabilities(),
-          revision,
+          editDisabledReason: journalStorage.getEditDisabledReason(),
         })
         break
       }
@@ -213,15 +207,8 @@ const handleRequest = async (request: StorageWorkerRequest): Promise<void> => {
         if (storage === null) {
           throw new WorkerRequestError("invalid_state", "Storage is not open")
         }
-        if (request.expectedRevision !== revision) {
-          throw new WorkerRequestError(
-            "revision_conflict",
-            `Expected revision ${request.expectedRevision}, current revision is ${revision}`
-          )
-        }
         const buffer = await storage.applyEdit(request.edit)
-        revision++
-        postResult(request.id, "applyEdit", { revision, buffer }, [buffer])
+        postResult(request.id, "applyEdit", buffer, [buffer])
         break
       }
       case "close": {

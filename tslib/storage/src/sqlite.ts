@@ -1,6 +1,6 @@
 import * as Optuna from "@optuna/types"
 import sqlite3InitModule from "./sqlite_init.js"
-import type { OptunaStorage, StorageCapabilities, StorageEdit } from "./storage"
+import type { StorageEdit } from "./storage"
 
 // Where to take sqlite3.wasm from.
 //
@@ -110,7 +110,7 @@ const EDITABLE_SCHEMA_VERSIONS = new Set([
   "v3.2.0.a",
 ])
 
-export class SQLite3Storage implements OptunaStorage {
+export class SQLite3Storage {
   db: Promise<SQLite3DB>
   summaries_cache: Optuna.StudySummary[] | null
   private closed = false
@@ -205,45 +205,26 @@ export class SQLite3Storage implements OptunaStorage {
     return tables === 2
   }
 
-  getSchemaVersion = async (): Promise<string> => {
-    return getSchemaVersion(await this.db)
-  }
-
-  getCapabilities = (): StorageCapabilities => {
+  getEditDisabledReason = async (): Promise<string | undefined> => {
     if (this.wasWal) {
-      return {
-        editable: false,
-        readOnlyReason:
-          "WAL-mode SQLite databases can be viewed but not edited safely",
-      }
+      return "WAL-mode SQLite databases can be viewed but not edited safely"
     }
-    return { editable: true }
-  }
-
-  getEditCapabilities = async (): Promise<StorageCapabilities> => {
-    const base = this.getCapabilities()
-    if (!base.editable) {
-      return base
-    }
-    const schemaVersion = await this.getSchemaVersion()
+    const schemaVersion = getSchemaVersion(await this.db)
     if (!EDITABLE_SCHEMA_VERSIONS.has(schemaVersion)) {
-      return {
-        editable: false,
-        readOnlyReason: `SQLite schema ${
-          schemaVersion || "unknown"
-        } is not supported for editing`,
-      }
+      return `SQLite schema ${
+        schemaVersion || "unknown"
+      } is not supported for editing`
     }
-    return base
+    return undefined
   }
 
   applyEdit = async (edit: StorageEdit): Promise<ArrayBuffer> => {
     if (this.closed) {
       throw new Error("Storage is closed")
     }
-    const capabilities = await this.getEditCapabilities()
-    if (!capabilities.editable) {
-      throw new Error(capabilities.readOnlyReason ?? "Storage is read-only")
+    const editDisabledReason = await this.getEditDisabledReason()
+    if (editDisabledReason !== undefined) {
+      throw new Error(editDisabledReason)
     }
     const db = await this.db
     db.exec({ sql: "BEGIN IMMEDIATE" })

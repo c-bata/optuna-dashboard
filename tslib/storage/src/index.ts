@@ -22,12 +22,8 @@ export {
   StorageWorkerError,
 } from "./worker_client.js"
 export type {
-  EditableOptunaStorage,
   OptunaStorage,
-  StorageCapabilities,
   StorageEdit,
-  StorageEditResult,
-  StudyDirection,
 } from "./storage.js"
 export type { SQLiteWasmOptions } from "./sqlite.js"
 // The request and response types stay internal: they describe the wire between

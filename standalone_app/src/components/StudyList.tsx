@@ -12,10 +12,6 @@ import {
   CardContent,
   Chip,
   Container,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   IconButton,
   InputAdornment,
   MenuItem,
@@ -30,6 +26,7 @@ import { styled } from "@mui/system"
 import * as Optuna from "@optuna/types"
 import {
   FC,
+  useCallback,
   useContext,
   useDeferredValue,
   useEffect,
@@ -50,54 +47,65 @@ export const StudyList: FC<{
     closeStorage,
     applyEdit,
     downloadStorage,
-    capabilities,
-    editRevision,
+    editDisabledReason,
     dirty,
     reportError,
   } = useContext(StorageContext)
   const [studies, setStudies] = useState<Optuna.StudySummary[]>([])
-  const [createOpen, setCreateOpen] = useState(false)
-  const [studyName, setStudyName] = useState("")
-  const [directions, setDirections] = useState<("minimize" | "maximize")[]>([
-    "minimize",
-  ])
   const [editing, setEditing] = useState(false)
+  const editable = storage !== null && editDisabledReason === undefined
 
   const [_studyFilterText, setStudyFilterText] = useState<string>("")
   const [sortBy, setSortBy] = useState<"id-asc" | "id-desc">("id-asc")
   const studyFilterText = useDeferredValue(_studyFilterText)
+  const refreshStudies = useCallback(async () => {
+    if (storage === null) {
+      setStudies([])
+      return
+    }
+    try {
+      setStudies(await storage.getStudies())
+    } catch (error) {
+      reportError(error)
+    }
+  }, [reportError, storage])
+
   useEffect(() => {
-    let active = true
-    const requestedRevision = editRevision
-    const fetchStudies = async () => {
-      if (storage === null) {
-        setStudies([])
-        return
-      }
-      try {
-        const studies = await storage.getStudies()
-        if (active && requestedRevision === editRevision) {
-          setStudies(studies)
-        }
-      } catch (error) {
-        if (active) {
-          reportError(error)
-        }
-      }
-    }
-    void fetchStudies()
-    return () => {
-      active = false
-    }
-  }, [editRevision, reportError, storage])
+    void refreshStudies()
+  }, [refreshStudies])
 
   const createStudy = async () => {
+    const name = window.prompt("Study name")
+    if (name === null) {
+      return
+    }
+    const directionInput = window.prompt(
+      "Directions (minimize or maximize, separated by commas)",
+      "minimize"
+    )
+    if (directionInput === null) {
+      return
+    }
+    const directions = directionInput
+      .split(",")
+      .map((direction) => direction.trim().toLowerCase())
+    if (
+      directions.length === 0 ||
+      directions.some(
+        (direction) => direction !== "minimize" && direction !== "maximize"
+      )
+    ) {
+      reportError(new Error("Directions must be minimize or maximize"))
+      return
+    }
     setEditing(true)
     try {
-      await applyEdit({ kind: "createStudy", name: studyName, directions })
-      setCreateOpen(false)
-      setStudyName("")
-      setDirections(["minimize"])
+      await applyEdit({
+        kind: "createStudy",
+        name,
+        directions: directions as Optuna.StudyDirection[],
+      })
+      await refreshStudies()
     } catch {
       // StorageProvider reports the actionable error.
     } finally {
@@ -119,6 +127,7 @@ export const StudyList: FC<{
     setEditing(true)
     try {
       await applyEdit({ kind: "deleteStudy", studyId: study.id })
+      await refreshStudies()
     } catch {
       // StorageProvider reports the actionable error.
     } finally {
@@ -288,11 +297,11 @@ export const StudyList: FC<{
                   Download modified file
                 </Button>
               )}
-              {capabilities.editable && (
+              {editable && (
                 <Button
                   variant="contained"
                   startIcon={<Add />}
-                  onClick={() => setCreateOpen(true)}
+                  onClick={() => void createStudy()}
                   disabled={editing}
                 >
                   Create Study
@@ -301,9 +310,9 @@ export const StudyList: FC<{
             </Box>
           </CardContent>
         </Card>
-        {storage !== null && !capabilities.editable && (
+        {editDisabledReason !== undefined && (
           <Alert severity="info" sx={{ margin: theme.spacing(2) }}>
-            Read-only: {capabilities.readOnlyReason ?? "editing is unavailable"}
+            Editing disabled: {editDisabledReason}
           </Alert>
         )}
         <Box sx={{ display: "flex", flexWrap: "wrap" }}>
@@ -329,7 +338,7 @@ export const StudyList: FC<{
                     </Typography>
                   </CardContent>
                 </CardActionArea>
-                {capabilities.editable && (
+                {editable && (
                   <Tooltip title="Delete study">
                     <IconButton
                       aria-label={`Delete ${study.name}`}
@@ -347,65 +356,6 @@ export const StudyList: FC<{
         </Box>
         {!IS_VSCODE && storage === null && <StorageLoader />}
       </Container>
-      <Dialog
-        open={createOpen}
-        onClose={() => !editing && setCreateOpen(false)}
-      >
-        <DialogTitle>Create Study</DialogTitle>
-        <DialogContent sx={{ minWidth: 420 }}>
-          <TextField
-            autoFocus
-            fullWidth
-            label="Study name"
-            value={studyName}
-            onChange={(event) => setStudyName(event.target.value)}
-            sx={{ marginTop: theme.spacing(1), marginBottom: theme.spacing(2) }}
-          />
-          {directions.map((direction, index) => (
-            <TextField
-              // Objective rows are append-only and only the final row is removed.
-              // biome-ignore lint/suspicious/noArrayIndexKey: The position is the objective identity.
-              key={index}
-              select
-              fullWidth
-              label={`Objective ${index + 1}`}
-              value={direction}
-              onChange={(event) => {
-                const next = [...directions]
-                next[index] = event.target.value as "minimize" | "maximize"
-                setDirections(next)
-              }}
-              sx={{ marginBottom: theme.spacing(1) }}
-            >
-              <MenuItem value="minimize">Minimize</MenuItem>
-              <MenuItem value="maximize">Maximize</MenuItem>
-            </TextField>
-          ))}
-          <Button
-            onClick={() => setDirections([...directions, "minimize"])}
-            startIcon={<Add />}
-          >
-            Add objective
-          </Button>
-          {directions.length > 1 && (
-            <Button onClick={() => setDirections(directions.slice(0, -1))}>
-              Remove objective
-            </Button>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCreateOpen(false)} disabled={editing}>
-            Cancel
-          </Button>
-          <Button
-            onClick={() => void createStudy()}
-            disabled={editing || studyName.trim() === ""}
-            variant="contained"
-          >
-            Create
-          </Button>
-        </DialogActions>
-      </Dialog>
     </div>
   )
 }

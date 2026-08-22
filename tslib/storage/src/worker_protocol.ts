@@ -1,9 +1,5 @@
 import type * as Optuna from "@optuna/types"
-import type {
-  StorageCapabilities,
-  StorageEdit,
-  StorageEditResult,
-} from "./storage"
+import type { StorageEdit } from "./storage"
 
 export type StorageWarning = {
   log: string
@@ -13,9 +9,7 @@ export type StorageWarning = {
 export type OpenStorageResult = {
   format: "journal" | "sqlite3"
   warnings: StorageWarning[]
-  capabilities: StorageCapabilities
-  revision: number
-  schemaVersion?: string
+  editDisabledReason?: string
 }
 
 export type StorageWorkerRequestBody =
@@ -27,7 +21,7 @@ export type StorageWorkerRequestBody =
     }
   | { type: "getStudies" }
   | { type: "getStudy"; studyId: number }
-  | { type: "applyEdit"; edit: StorageEdit; expectedRevision: number }
+  | { type: "applyEdit"; edit: StorageEdit }
   | { type: "close" }
 
 // The body plus its correlation ID. The two are separate types because Omit<>
@@ -44,7 +38,7 @@ export type StorageWorkerResultMap = {
   open: OpenStorageResult
   getStudies: Optuna.StudySummary[]
   getStudy: Optuna.Study | null
-  applyEdit: StorageEditResult
+  applyEdit: ArrayBuffer
   close: null
 }
 

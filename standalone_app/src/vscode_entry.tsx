@@ -1,7 +1,4 @@
-import type {
-  StorageEditResult,
-  StorageWorkerFactory,
-} from "@optuna/storage/worker-client"
+import type { StorageWorkerFactory } from "@optuna/storage/worker-client"
 import React, { FC, useContext, useEffect } from "react"
 import ReactDOM from "react-dom/client"
 import { App } from "./components/App"
@@ -33,7 +30,7 @@ type WebviewMessage = {
   type: "optunaStorage"
   content: unknown
   name?: string
-  readOnlyReason?: string
+  editDisabledReason?: string
   workerUri: string
   sqliteWasmUri: string
 }
@@ -41,33 +38,34 @@ type WebviewMessage = {
 type ReloadMessage = {
   type: "reloadStorage"
   content: unknown
-  readOnlyReason?: string
+  editDisabledReason?: string
 }
 
-type ChangeResultMessage = {
-  type: "documentChangeAccepted" | "documentChangeRejected"
-  revision: number
-  message?: string
-  content?: unknown
-}
+type ExtensionMessage =
+  | WebviewMessage
+  | ReloadMessage
+  | { type: "documentChangeAccepted" }
+  | { type: "documentChangeRejected"; message?: string }
 
-const pendingChanges = new Map<
-  number,
-  { resolve: () => void; reject: (error: Error) => void }
->()
+let pendingChange:
+  | { resolve: () => void; reject: (error: Error) => void }
+  | undefined
 
-const sendStorageChange = (result: StorageEditResult): Promise<void> => {
+const sendStorageChange = (buffer: ArrayBuffer): Promise<void> => {
   return new Promise((resolve, reject) => {
     const api = getVsCodeApi()
     if (api === null) {
       reject(new Error("VS Code API is unavailable"))
       return
     }
-    pendingChanges.set(result.revision, { resolve, reject })
+    if (pendingChange !== undefined) {
+      reject(new Error("Another document update is still in progress"))
+      return
+    }
+    pendingChange = { resolve, reject }
     api.postMessage({
       type: "documentChanged",
-      revision: result.revision,
-      content: result.buffer,
+      content: buffer,
     })
   })
 }
@@ -77,28 +75,22 @@ export const AppWrapper: FC = () => {
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      const message = event.data as
-        | WebviewMessage
-        | ReloadMessage
-        | ChangeResultMessage
+      const message = event.data as ExtensionMessage
 
       switch (message.type) {
         case "optunaStorage": {
           const buffer = toArrayBuffer(message.content)
           void (async () => {
             try {
-              const storageMessage = message as WebviewMessage
-              documentWorkerUri = storageMessage.workerUri
-              documentWasmUri = storageMessage.sqliteWasmUri
+              documentWorkerUri = message.workerUri
+              documentWasmUri = message.sqliteWasmUri
               await loadStorage(buffer, {
-                name: storageMessage.name,
-                readOnlyReason: storageMessage.readOnlyReason,
-                workerFactory: createWebviewWorkerFactory(
-                  storageMessage.workerUri
-                ),
+                name: message.name,
+                editDisabledReason: message.editDisabledReason,
+                workerFactory: createWebviewWorkerFactory(message.workerUri),
                 sqliteWasm: {
                   buffer: await fetchAsset(
-                    storageMessage.sqliteWasmUri,
+                    message.sqliteWasmUri,
                     "SQLite wasm"
                   ),
                 },
@@ -110,7 +102,6 @@ export const AppWrapper: FC = () => {
           break
         }
         case "reloadStorage": {
-          const reloadMessage = message as ReloadMessage
           void (async () => {
             try {
               const workerUri = documentWorkerUri
@@ -119,8 +110,8 @@ export const AppWrapper: FC = () => {
                 throw new Error("Storage assets are not initialized")
               }
               await closeStorage()
-              await loadStorage(toArrayBuffer(reloadMessage.content), {
-                readOnlyReason: reloadMessage.readOnlyReason,
+              await loadStorage(toArrayBuffer(message.content), {
+                editDisabledReason: message.editDisabledReason,
                 workerFactory: createWebviewWorkerFactory(workerUri),
                 sqliteWasm: {
                   buffer: await fetchAsset(wasmUri, "SQLite wasm"),
@@ -133,29 +124,15 @@ export const AppWrapper: FC = () => {
           break
         }
         case "documentChangeAccepted": {
-          const resultMessage = message as ChangeResultMessage
-          pendingChanges.get(resultMessage.revision)?.resolve()
-          pendingChanges.delete(resultMessage.revision)
+          pendingChange?.resolve()
+          pendingChange = undefined
           break
         }
         case "documentChangeRejected": {
-          const resultMessage = message as ChangeResultMessage
-          pendingChanges
-            .get(resultMessage.revision)
-            ?.reject(
-              new Error(resultMessage.message ?? "Document update failed")
-            )
-          pendingChanges.delete(resultMessage.revision)
-          if (resultMessage.content !== undefined) {
-            window.dispatchEvent(
-              new MessageEvent("message", {
-                data: {
-                  type: "reloadStorage",
-                  content: resultMessage.content,
-                } satisfies ReloadMessage,
-              })
-            )
-          }
+          pendingChange?.reject(
+            new Error(message.message ?? "Document update failed")
+          )
+          pendingChange = undefined
           break
         }
       }

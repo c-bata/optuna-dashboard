@@ -1,9 +1,7 @@
 import {
-  type EditableOptunaStorage,
+  type OptunaStorage,
   type SQLiteWasmSource,
-  type StorageCapabilities,
   type StorageEdit,
-  type StorageEditResult,
   type StorageWorkerFactory,
   openStorage,
 } from "@optuna/storage/worker-client"
@@ -22,11 +20,11 @@ export type StorageOpenOptions = {
   name?: string
   workerFactory?: StorageWorkerFactory
   sqliteWasm?: SQLiteWasmSource
-  readOnlyReason?: string
+  editDisabledReason?: string
 }
 
 export const StorageContext = createContext<{
-  storage: EditableOptunaStorage | null
+  storage: OptunaStorage | null
   storageName: string | null
   loadStorage: (
     arrayBuffer: ArrayBuffer,
@@ -35,8 +33,7 @@ export const StorageContext = createContext<{
   closeStorage: () => Promise<void>
   applyEdit: (edit: StorageEdit) => Promise<void>
   downloadStorage: () => void
-  capabilities: StorageCapabilities
-  editRevision: number
+  editDisabledReason?: string
   dirty: boolean
   loading: boolean
   error: Error | null
@@ -48,8 +45,7 @@ export const StorageContext = createContext<{
   closeStorage: async () => {},
   applyEdit: async () => {},
   downloadStorage: () => {},
-  capabilities: { editable: false },
-  editRevision: 0,
+  editDisabledReason: undefined,
   dirty: false,
   loading: false,
   error: null,
@@ -65,7 +61,7 @@ export const StorageContext = createContext<{
 // storage it just opened instead of publishing it.
 type StorageSession = {
   generation: number
-  storage: EditableOptunaStorage | null
+  storage: OptunaStorage | null
   loading: boolean
 }
 
@@ -73,18 +69,15 @@ export const StorageProvider: FC<{
   children: React.ReactNode
   workerFactory?: StorageWorkerFactory
   sqliteWasm?: SQLiteWasmSource
-  onStorageChange?: (result: StorageEditResult) => Promise<void>
+  onStorageChange?: (buffer: ArrayBuffer) => Promise<void>
 }> = ({ children, workerFactory, sqliteWasm, onStorageChange }) => {
-  const [storage, setActiveStorage] = useState<EditableOptunaStorage | null>(
-    null
-  )
+  const [storage, setActiveStorage] = useState<OptunaStorage | null>(null)
   const [storageName, setStorageName] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
-  const [capabilities, setCapabilities] = useState<StorageCapabilities>({
-    editable: false,
-  })
-  const [editRevision, setEditRevision] = useState(0)
+  const [editDisabledReason, setEditDisabledReason] = useState<
+    string | undefined
+  >()
   const [dirty, setDirty] = useState(false)
   const [currentBytes, setCurrentBytes] = useState<ArrayBuffer | null>(null)
   const sessionRef = useRef<StorageSession>({
@@ -92,6 +85,7 @@ export const StorageProvider: FC<{
     storage: null,
     loading: false,
   })
+  const editInFlightRef = useRef(false)
 
   const reportError = useCallback((loadError: unknown) => {
     const normalizedError =
@@ -113,8 +107,7 @@ export const StorageProvider: FC<{
     setStorageName(null)
     setLoading(false)
     setError(null)
-    setCapabilities({ editable: false })
-    setEditRevision(0)
+    setEditDisabledReason(undefined)
     setDirty(false)
     setCurrentBytes(null)
     if (currentStorage !== null) {
@@ -160,12 +153,9 @@ export const StorageProvider: FC<{
         session.storage = nextStorage
         setActiveStorage(nextStorage)
         setStorageName(options.name ?? null)
-        setCapabilities(
-          options.readOnlyReason === undefined
-            ? nextStorage.getCapabilities()
-            : { editable: false, readOnlyReason: options.readOnlyReason }
+        setEditDisabledReason(
+          options.editDisabledReason ?? nextStorage.getEditDisabledReason()
         )
-        setEditRevision(0)
         setDirty(false)
         setCurrentBytes(null)
       } catch (loadError) {
@@ -188,23 +178,29 @@ export const StorageProvider: FC<{
       if (currentStorage === null) {
         throw new Error("Storage is not open")
       }
-      if (!capabilities.editable) {
-        throw new Error(capabilities.readOnlyReason ?? "Storage is read-only")
+      if (editDisabledReason !== undefined) {
+        throw new Error(editDisabledReason)
       }
+      if (editInFlightRef.current) {
+        throw new Error("Another storage edit is still in progress")
+      }
+      editInFlightRef.current = true
       try {
-        const result = await currentStorage.applyEdit(edit)
+        const buffer = await currentStorage.applyEdit(edit)
+        const localCopy = buffer.slice(0)
         if (onStorageChange !== undefined) {
-          await onStorageChange(result)
+          await onStorageChange(buffer)
         }
-        setCurrentBytes(result.buffer.slice(0))
-        setEditRevision(result.revision)
+        setCurrentBytes(localCopy)
         setDirty(true)
       } catch (editError) {
         reportError(editError)
         throw editError
+      } finally {
+        editInFlightRef.current = false
       }
     },
-    [capabilities, onStorageChange, reportError]
+    [editDisabledReason, onStorageChange, reportError]
   )
 
   const downloadStorage = useCallback(() => {
@@ -256,8 +252,7 @@ export const StorageProvider: FC<{
         closeStorage,
         applyEdit,
         downloadStorage,
-        capabilities,
-        editRevision,
+        editDisabledReason,
         dirty,
         loading,
         error,

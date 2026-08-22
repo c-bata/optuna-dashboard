@@ -6,41 +6,33 @@ type Fingerprint = { mtime: number; size: number }
 
 type DocumentChangeMessage = {
   type: "documentChanged"
-  revision: number
   content: unknown
 }
 
 class OptunaStorageDocument implements vscode.CustomDocument {
   public currentBytes: Uint8Array
   public fingerprint: Fingerprint
-  public workerRevision = 0
-  public readOnlyReason: string | undefined
-
-  private readonly disposeEmitter = new vscode.EventEmitter<void>()
-  public readonly onDidDispose = this.disposeEmitter.event
+  public editDisabledReason: string | undefined
 
   constructor(
     public readonly uri: vscode.Uri,
     bytes: Uint8Array,
     fingerprint: Fingerprint,
-    readOnlyReason?: string
+    editDisabledReason?: string
   ) {
-    this.currentBytes = copyBytes(bytes)
+    this.currentBytes = Uint8Array.from(bytes)
     this.fingerprint = fingerprint
-    this.readOnlyReason = readOnlyReason
+    this.editDisabledReason = editDisabledReason
   }
 
-  public dispose(): void {
-    this.disposeEmitter.fire()
-    this.disposeEmitter.dispose()
-  }
+  public dispose(): void {}
 }
 
 class OptunaStorageEditorProvider
   implements vscode.CustomEditorProvider<OptunaStorageDocument>
 {
   private readonly changeEmitter = new vscode.EventEmitter<
-    vscode.CustomDocumentEditEvent<OptunaStorageDocument>
+    vscode.CustomDocumentContentChangeEvent<OptunaStorageDocument>
   >()
   public readonly onDidChangeCustomDocument = this.changeEmitter.event
 
@@ -64,7 +56,7 @@ class OptunaStorageEditorProvider
       uri,
       bytes,
       fingerprint,
-      await readOnlyReasonFor(uri, bytes)
+      await editDisabledReasonFor(uri, bytes)
     )
   }
 
@@ -143,10 +135,12 @@ class OptunaStorageEditorProvider
       return
     }
     const bytes = await vscode.workspace.fs.readFile(document.uri)
-    document.currentBytes = copyBytes(bytes)
+    document.currentBytes = Uint8Array.from(bytes)
     document.fingerprint = await fingerprintFor(document.uri)
-    document.workerRevision = 0
-    document.readOnlyReason = await readOnlyReasonFor(document.uri, bytes)
+    document.editDisabledReason = await editDisabledReasonFor(
+      document.uri,
+      bytes
+    )
     await this.postReload(document)
   }
 
@@ -182,43 +176,18 @@ class OptunaStorageEditorProvider
     message: DocumentChangeMessage
   ): Promise<void> {
     try {
-      if (!Number.isSafeInteger(message.revision)) {
-        throw new Error("The storage Worker returned an invalid revision")
-      }
-      if (message.revision <= document.workerRevision) {
-        throw new Error("The storage Worker returned a stale revision")
-      }
-      const nextBytes = new Uint8Array(toArrayBuffer(message.content)).slice()
-      const previousBytes = document.currentBytes
-      document.currentBytes = nextBytes
-      document.workerRevision = message.revision
-
-      this.changeEmitter.fire({
-        document,
-        label: "Edit Optuna storage",
-        undo: async () => {
-          document.currentBytes = previousBytes
-          document.workerRevision = 0
-          await this.postReload(document)
-        },
-        redo: async () => {
-          document.currentBytes = nextBytes
-          document.workerRevision = 0
-          await this.postReload(document)
-        },
-      })
-      await webview.postMessage({
-        type: "documentChangeAccepted",
-        revision: message.revision,
-      })
+      document.currentBytes = new Uint8Array(
+        toArrayBuffer(message.content)
+      ).slice()
+      this.changeEmitter.fire({ document })
+      await webview.postMessage({ type: "documentChangeAccepted" })
     } catch (error) {
       await webview.postMessage({
         type: "documentChangeRejected",
-        revision: message.revision,
         message:
           error instanceof Error ? error.message : "Document update failed",
-        content: toArrayBuffer(document.currentBytes),
       })
+      await this.postReload(document)
     }
   }
 
@@ -234,7 +203,7 @@ class OptunaStorageEditorProvider
       type: "optunaStorage",
       content: toArrayBuffer(document.currentBytes),
       name: document.uri.path.split("/").pop(),
-      readOnlyReason: document.readOnlyReason,
+      editDisabledReason: document.editDisabledReason,
       workerUri: asset("storage-worker.js").toString(),
       sqliteWasmUri: asset("sqlite3.wasm").toString(),
     })
@@ -248,7 +217,7 @@ class OptunaStorageEditorProvider
     await webview.postMessage({
       type: "reloadStorage",
       content: toArrayBuffer(document.currentBytes),
-      readOnlyReason: document.readOnlyReason,
+      editDisabledReason: document.editDisabledReason,
     })
   }
 }
@@ -312,7 +281,7 @@ const isFileNotFound = (error: unknown): boolean => {
   )
 }
 
-const readOnlyReasonFor = async (
+const editDisabledReasonFor = async (
   uri: vscode.Uri,
   bytes: Uint8Array
 ): Promise<string | undefined> => {
@@ -337,7 +306,7 @@ const assertSafeDestination = async (
   uri: vscode.Uri,
   bytes: Uint8Array
 ): Promise<void> => {
-  const reason = await readOnlyReasonFor(uri, bytes)
+  const reason = await editDisabledReasonFor(uri, bytes)
   if (reason !== undefined) {
     throw new Error(reason)
   }
@@ -383,9 +352,6 @@ function toArrayBuffer(content: Uint8Array | unknown): ArrayBuffer {
   }
   throw new TypeError("Storage content is not an ArrayBuffer")
 }
-
-const copyBytes = (content: Uint8Array): Uint8Array =>
-  new Uint8Array(toArrayBuffer(content).slice(0))
 
 function getWebviewContent(indexJsUri: vscode.Uri, cspSource: string): string {
   const csp = [

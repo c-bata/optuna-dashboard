@@ -1,5 +1,5 @@
 import * as Optuna from "@optuna/types"
-import type { OptunaStorage, StorageCapabilities, StorageEdit } from "./storage"
+import type { StorageEdit } from "./storage"
 
 // TODO(porink0424): Refactor to common function with sqlite.ts (current workaround duplicates code due to missing file extensions in tsc build output).
 const isDistributionEqual = (
@@ -557,7 +557,7 @@ const loadJournalStorage = (
   }
 }
 
-export class JournalFileStorage implements OptunaStorage {
+export class JournalFileStorage {
   private readonly storage: JournalStorage
   private readonly originalBytes: Uint8Array
   private readonly appendedBytes: Uint8Array[] = []
@@ -594,30 +594,24 @@ export class JournalFileStorage implements OptunaStorage {
   getErrors = (): { log: string; message: string }[] => {
     return this.errors
   }
-  getCapabilities = (): StorageCapabilities => {
+  getEditDisabledReason = (): string | undefined => {
     if (this.errors.length > 0) {
-      return {
-        editable: false,
-        readOnlyReason: "This Journal contains unreadable records",
-      }
+      return "This Journal contains unreadable records"
     }
     if (
       this.originalBytes.length > 0 &&
       this.originalBytes[this.originalBytes.length - 1] !== 0x0a
     ) {
-      return {
-        editable: false,
-        readOnlyReason: "The final Journal record is not newline-terminated",
-      }
+      return "The final Journal record is not newline-terminated"
     }
-    return { editable: true }
+    return undefined
   }
 
   applyEdit = async (edit: StorageEdit): Promise<ArrayBuffer> => {
     this.assertOpen()
-    const capabilities = this.getCapabilities()
-    if (!capabilities.editable) {
-      throw new Error(capabilities.readOnlyReason ?? "Storage is read-only")
+    const editDisabledReason = this.getEditDisabledReason()
+    if (editDisabledReason !== undefined) {
+      throw new Error(editDisabledReason)
     }
     const operation =
       edit.kind === "createStudy"

@@ -172,6 +172,31 @@ describe("storage worker", () => {
     }
   })
 
+  it("applies Journal edits before later reads", async () => {
+    const content =
+      '{"op_code":0,"worker_id":"python","study_name":"first","directions":[1]}\n'
+    const storage = await StorageWorkerClient.open(
+      new TextEncoder().encode(content).buffer,
+      createWorkerFactory()
+    )
+    try {
+      const edit = storage.applyEdit({
+        kind: "createStudy",
+        name: "second",
+        directions: ["maximize"],
+      })
+      const studies = storage.getStudies()
+      const [buffer, summaries] = await Promise.all([edit, studies])
+      assert.deepEqual(
+        summaries.map((study) => study.name),
+        ["first", "second"]
+      )
+      assert.match(new TextDecoder().decode(buffer), /"worker_id"/)
+    } finally {
+      await storage.close()
+    }
+  })
+
   it("answers an unsupported request instead of leaving it pending", async () => {
     const { worker, dispose } = await createWorkerFactory()()
     try {

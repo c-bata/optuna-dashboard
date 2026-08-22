@@ -15,12 +15,7 @@
 // This file is the second: the UI thread client.
 
 import type * as Optuna from "@optuna/types"
-import type {
-  EditableOptunaStorage,
-  StorageCapabilities,
-  StorageEdit,
-  StorageEditResult,
-} from "./storage"
+import type { OptunaStorage, StorageEdit } from "./storage"
 import type {
   OpenStorageResult,
   StorageWorkerRequest,
@@ -33,12 +28,8 @@ import type {
 // Re-exported so that a UI can depend on this subpath alone: importing the
 // package root would pull the SQLite backend into the bundle.
 export type {
-  EditableOptunaStorage,
   OptunaStorage,
-  StorageCapabilities,
   StorageEdit,
-  StorageEditResult,
-  StudyDirection,
 } from "./storage"
 
 export type StorageWorker = {
@@ -81,7 +72,7 @@ type PendingRequest = {
   reject: (reason: unknown) => void
 }
 
-export class StorageWorkerClient implements EditableOptunaStorage {
+export class StorageWorkerClient implements OptunaStorage {
   private state: ClientState = "opening"
   private nextRequestId = 0
   private readonly pending = new Map<number, PendingRequest>()
@@ -174,34 +165,13 @@ export class StorageWorkerClient implements EditableOptunaStorage {
     return this.openResult?.warnings ?? []
   }
 
-  public getFormat(): OpenStorageResult["format"] | null {
-    return this.openResult?.format ?? null
+  public getEditDisabledReason(): string | undefined {
+    return this.openResult?.editDisabledReason
   }
 
-  public getCapabilities(): StorageCapabilities {
-    return (
-      this.openResult?.capabilities ?? {
-        editable: false,
-        readOnlyReason: "Storage is not ready",
-      }
-    )
-  }
-
-  public applyEdit = async (edit: StorageEdit): Promise<StorageEditResult> => {
+  public applyEdit = async (edit: StorageEdit): Promise<ArrayBuffer> => {
     await this.waitUntilReady()
-    const expectedRevision = this.openResult?.revision
-    if (expectedRevision === undefined) {
-      throw new StorageWorkerError("invalid_state", "Storage is not ready")
-    }
-    const result = await this.request({
-      type: "applyEdit",
-      edit,
-      expectedRevision,
-    })
-    if (this.openResult !== null) {
-      this.openResult.revision = result.revision
-    }
-    return result
+    return this.request({ type: "applyEdit", edit })
   }
 
   public getStudies = async (): Promise<Optuna.StudySummary[]> => {
