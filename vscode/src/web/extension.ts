@@ -111,7 +111,7 @@ class OptunaStorageEditorProvider
       )
     }
     await assertSafeDestination(document.uri, document.currentBytes)
-    await atomicWrite(document.uri, document.currentBytes)
+    await vscode.workspace.fs.writeFile(document.uri, document.currentBytes)
     document.fingerprint = await fingerprintFor(document.uri)
   }
 
@@ -124,7 +124,7 @@ class OptunaStorageEditorProvider
       return
     }
     await assertSafeDestination(destination, document.currentBytes)
-    await atomicWrite(destination, document.currentBytes)
+    await vscode.workspace.fs.writeFile(destination, document.currentBytes)
   }
 
   public async revertCustomDocument(
@@ -309,30 +309,6 @@ const assertSafeDestination = async (
   const reason = await editDisabledReasonFor(uri, bytes)
   if (reason !== undefined) {
     throw new Error(reason)
-  }
-}
-
-const atomicWrite = async (
-  destination: vscode.Uri,
-  bytes: Uint8Array
-): Promise<void> => {
-  const temporary = destination.with({
-    path: `${destination.path}.optuna-dashboard-${Date.now()}-${Math.random()
-      .toString(16)
-      .slice(2)}.tmp`,
-  })
-  try {
-    await vscode.workspace.fs.writeFile(temporary, bytes)
-    await vscode.workspace.fs.rename(temporary, destination, {
-      overwrite: true,
-    })
-  } catch (error) {
-    try {
-      await vscode.workspace.fs.delete(temporary)
-    } catch {
-      // The temporary file may not have been created or may already be gone.
-    }
-    throw error
   }
 }
 

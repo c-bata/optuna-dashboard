@@ -12,6 +12,11 @@ import {
   CardContent,
   Chip,
   Container,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   IconButton,
   InputAdornment,
   MenuItem,
@@ -53,6 +58,11 @@ export const StudyList: FC<{
   } = useContext(StorageContext)
   const [studies, setStudies] = useState<Optuna.StudySummary[]>([])
   const [editing, setEditing] = useState(false)
+  const [createStudyOpen, setCreateStudyOpen] = useState(false)
+  const [studyName, setStudyName] = useState("")
+  const [directionsInput, setDirectionsInput] = useState("minimize")
+  const [studyToDelete, setStudyToDelete] =
+    useState<Optuna.StudySummary | null>(null)
   const editable = storage !== null && editDisabledReason === undefined
 
   const [_studyFilterText, setStudyFilterText] = useState<string>("")
@@ -75,18 +85,7 @@ export const StudyList: FC<{
   }, [refreshStudies])
 
   const createStudy = async () => {
-    const name = window.prompt("Study name")
-    if (name === null) {
-      return
-    }
-    const directionInput = window.prompt(
-      "Directions (minimize or maximize, separated by commas)",
-      "minimize"
-    )
-    if (directionInput === null) {
-      return
-    }
-    const directions = directionInput
+    const directions = directionsInput
       .split(",")
       .map((direction) => direction.trim().toLowerCase())
     if (
@@ -102,10 +101,13 @@ export const StudyList: FC<{
     try {
       await applyEdit({
         kind: "createStudy",
-        name,
+        name: studyName,
         directions: directions as Optuna.StudyDirection[],
       })
       await refreshStudies()
+      setCreateStudyOpen(false)
+      setStudyName("")
+      setDirectionsInput("minimize")
     } catch {
       // StorageProvider reports the actionable error.
     } finally {
@@ -113,21 +115,15 @@ export const StudyList: FC<{
     }
   }
 
-  const deleteStudy = async (study: Optuna.StudySummary) => {
-    const autoSaveNote = IS_VSCODE
-      ? " If Auto Save is enabled, this may be saved immediately."
-      : ""
-    if (
-      !window.confirm(
-        `Delete study '${study.name}' and all of its trials?${autoSaveNote}`
-      )
-    ) {
+  const deleteStudy = async () => {
+    if (studyToDelete === null) {
       return
     }
     setEditing(true)
     try {
-      await applyEdit({ kind: "deleteStudy", studyId: study.id })
+      await applyEdit({ kind: "deleteStudy", studyId: studyToDelete.id })
       await refreshStudies()
+      setStudyToDelete(null)
     } catch {
       // StorageProvider reports the actionable error.
     } finally {
@@ -301,7 +297,7 @@ export const StudyList: FC<{
                 <Button
                   variant="contained"
                   startIcon={<Add />}
-                  onClick={() => void createStudy()}
+                  onClick={() => setCreateStudyOpen(true)}
                   disabled={editing}
                 >
                   Create Study
@@ -342,7 +338,7 @@ export const StudyList: FC<{
                   <Tooltip title="Delete study">
                     <IconButton
                       aria-label={`Delete ${study.name}`}
-                      onClick={() => void deleteStudy(study)}
+                      onClick={() => setStudyToDelete(study)}
                       disabled={editing}
                       sx={{ margin: theme.spacing(1) }}
                     >
@@ -356,6 +352,67 @@ export const StudyList: FC<{
         </Box>
         {!IS_VSCODE && storage === null && <StorageLoader />}
       </Container>
+      <Dialog
+        open={createStudyOpen}
+        onClose={() => !editing && setCreateStudyOpen(false)}
+      >
+        <DialogTitle>Create Study</DialogTitle>
+        <DialogContent sx={{ minWidth: 420 }}>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Study name"
+            value={studyName}
+            onChange={(event) => setStudyName(event.target.value)}
+            sx={{ marginTop: theme.spacing(1), marginBottom: theme.spacing(2) }}
+          />
+          <TextField
+            fullWidth
+            label="Directions"
+            value={directionsInput}
+            onChange={(event) => setDirectionsInput(event.target.value)}
+            helperText="Use minimize or maximize, separated by commas."
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreateStudyOpen(false)} disabled={editing}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => void createStudy()}
+            disabled={editing || studyName.trim() === ""}
+          >
+            Create
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={studyToDelete !== null}
+        onClose={() => !editing && setStudyToDelete(null)}
+      >
+        <DialogTitle>Delete Study?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Delete &apos;{studyToDelete?.name}&apos; and all of its trials?
+            {IS_VSCODE &&
+              " If Auto Save is enabled, this may be saved immediately."}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setStudyToDelete(null)} disabled={editing}>
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={() => void deleteStudy()}
+            disabled={editing}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   )
 }
