@@ -7,4 +7,5 @@
 .vscode/
 .claude/
 .codex/
+rustuna/
 *.local.*

@@ -37,7 +37,7 @@
   },
   "homepage": "https://github.com/optuna/optuna-dashboard#readme",
   "dependencies": {
-    "rustuna": "link:../../../rustuna/rustuna_js"
+    "rustuna": "link:../../rustuna/rustuna_js"
   },
   "devDependencies": {
     "@optuna/types": "workspace:*",

@@ -30,6 +30,7 @@ docs/_generated/
 # Rust
 rustlib/target/
 rustlib/pkg/
+/rustuna/
 
 # Test
 .coverage

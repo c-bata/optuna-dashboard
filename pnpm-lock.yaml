@@ -314,8 +314,8 @@ importers:
   tslib/storage:
     dependencies:
       rustuna:
-        specifier: link:../../../rustuna/rustuna_js
-        version: link:../../../rustuna/rustuna_js
+        specifier: link:../../rustuna/rustuna_js
+        version: link:../../rustuna/rustuna_js
     devDependencies:
       '@optuna/types':
         specifier: workspace:*

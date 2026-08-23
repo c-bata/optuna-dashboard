@@ -8,6 +8,7 @@ DASHBOARD_TS_SRC := $(shell find ./optuna_dashboard -name '*.ts' -o -name '*.tsx
 DASHBOARD_TS_OUT = optuna_dashboard/public/bundle.js optuna_dashboard/public/favicon.ico
 RUSTLIB_OUT = rustlib/pkg/optuna_wasm.js rustlib/pkg/optuna_wasm_bg.wasm rustlib/pkg/package.json
 STANDALONE_SRC := $(shell find ./standalone_app/src -name '*.ts' -o -name '*.tsx')
+RUSTUNA_DIR := rustuna
 
 $(RUSTLIB_OUT): rustlib/src/*.rs rustlib/Cargo.toml
 	rustlib/build.sh
@@ -20,8 +21,15 @@ $(DASHBOARD_TS_OUT): $(DASHBOARD_TS_SRC) tslib
 	pnpm install --frozen-lockfile
 	pnpm --filter @optuna/optuna-dashboard run build:$(MODE)
 
+.PHONY: rustuna-js
+rustuna-js:
+	@if [ ! -d "$(RUSTUNA_DIR)/.git" ]; then \
+		git clone https://github.com/optuna/rustuna.git "$(RUSTUNA_DIR)"; \
+	fi
+	bash $(RUSTUNA_DIR)/rustuna_js/build.sh
+
 .PHONY: tslib
-tslib:
+tslib: rustuna-js
 	pnpm install --frozen-lockfile
 	pnpm --filter @optuna/types run build
 	pnpm --filter @optuna/storage run build

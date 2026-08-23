@@ -20,6 +20,7 @@ The repository is organized as follows:
 ├── jupyterlab/               # The Jupyter Lab extension.
 ├── rustlib/                  # Rust library exporting Wasm functions.
 │   └── pkg/                  # Output directory for rustlib, installed from package.json via `"./rustlib/pkg"`.
+├── rustuna/                  # Local Rustuna checkout created by Make (not tracked by Git).
 └── tslib/                    # TypeScript library shared for common use.
     ├── react/                # Common React components.
     ├── storage/              # Common code for handling storage.
@@ -27,6 +28,25 @@ The repository is organized as follows:
 ```
 
 ## Python package
+
+### Rustuna JavaScript bindings
+
+Until the Rustuna JavaScript package is published to npm, the build uses a
+pinned Rustuna revision from a local `rustuna/` checkout. The checkout and its
+WebAssembly packages are prepared automatically by `make tslib` and the other
+Make targets that depend on it. To prepare only this dependency, run:
+
+```
+$ make rustuna-js
+```
+
+An existing `rustuna/` checkout is left untouched so that local Rustuna changes
+can be tested. A different repository or initial revision can be selected when
+creating the checkout:
+
+```
+$ make rustuna-js RUSTUNA_REPOSITORY=https://github.com/you/rustuna.git RUSTUNA_REVISION=your-branch
+```
 
 #### Building TypeScript packages
 
@@ -161,10 +181,14 @@ The release process(compiling TypeScript files, packaging Python distributions a
 
 ## Standalone Single-page Application
 
-Please install [wasm-bindgen-cli](https://rustwasm.github.io/wasm-bindgen/reference/cli.html) and [wasm-opt](https://docs.rs/wasm-opt/latest/wasm_opt/), and then execute the following command.
+Please install Clang, the `wasm32-unknown-unknown` Rust target,
+[wasm-bindgen-cli](https://rustwasm.github.io/wasm-bindgen/reference/cli.html), and
+[wasm-opt](https://docs.rs/wasm-opt/latest/wasm_opt/), and then execute the
+following command.
 
 ```
 $ cargo install wasm-bindgen-cli wasm-opt
+$ rustup target add wasm32-unknown-unknown
 $ make serve-browser-app
 ```
 
@@ -226,4 +250,3 @@ pip uninstall jupyterlab_optuna
 In development mode, you will also need to remove the symlink created by `jupyter labextension develop` command.
 To find its location, you can run `jupyter labextension list` to figure out where the labextensions folder is located.
 Then you can remove the symlink named jupyterlab-optuna within that folder.
-
