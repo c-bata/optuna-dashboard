@@ -1,5 +1,5 @@
 import * as Optuna from "@optuna/types"
-import { OptunaStorage } from "./storage"
+import type { StorageEdit } from "./storage"
 
 // TODO(porink0424): Refactor to common function with sqlite.ts (current workaround duplicates code due to missing file extensions in tsc build output).
 const isDistributionEqual = (
@@ -47,7 +47,7 @@ enum JournalOperation {
 
 interface JournalOpBase {
   op_code: JournalOperation
-  workor_id: string
+  worker_id: string
 }
 
 interface JournalOpCreateStudy extends JournalOpBase {
@@ -222,7 +222,9 @@ class JournalStorage {
     this.studies.push({
       id: this.nextStudyId,
       name: log.study_name,
-      directions: [log.directions[0] === 1 ? "minimize" : "maximize"],
+      directions: log.directions.map((direction) =>
+        direction === 1 ? "minimize" : "maximize"
+      ),
       union_search_space: [],
       intersection_search_space: [],
       union_user_attrs: [],
@@ -233,6 +235,45 @@ class JournalStorage {
 
   public applyDeleteStudy(log: JournalOpDeleteStudy): void {
     this.studies = this.studies.filter((item) => item.id !== log.study_id)
+  }
+
+  public createStudy(
+    name: string,
+    directions: ("minimize" | "maximize")[],
+    workerId: string
+  ): JournalOpCreateStudy {
+    if (name.trim() === "") {
+      throw new Error("Study name must not be empty")
+    }
+    if (directions.length === 0) {
+      throw new Error("At least one study direction is required")
+    }
+    if (this.studies.some((study) => study.name === name)) {
+      throw new Error(`A study named '${name}' already exists`)
+    }
+    const operation: JournalOpCreateStudy = {
+      op_code: JournalOperation.CREATE_STUDY,
+      worker_id: workerId,
+      study_name: name,
+      directions: directions.map((direction) =>
+        direction === "minimize" ? 1 : 2
+      ),
+    }
+    this.applyCreateStudy(operation)
+    return operation
+  }
+
+  public deleteStudy(studyId: number, workerId: string): JournalOpDeleteStudy {
+    if (!this.studies.some((study) => study.id === studyId)) {
+      throw new Error(`Study ${studyId} does not exist`)
+    }
+    const operation: JournalOpDeleteStudy = {
+      op_code: JournalOperation.DELETE_STUDY,
+      worker_id: workerId,
+      study_id: studyId,
+    }
+    this.applyDeleteStudy(operation)
+    return operation
   }
 
   public applyStudySystemAttr(log: JournalOpSetStudySystemAttr): void {
@@ -406,7 +447,7 @@ class JournalStorage {
 const loadJournalStorage = (
   arrayBuffer: ArrayBuffer
 ): {
-  studies: Optuna.Study[]
+  storage: JournalStorage
   errors: { log: string; message: string }[]
   appliedRecords: number
 } => {
@@ -510,36 +551,101 @@ const loadJournalStorage = (
   }
 
   return {
-    studies: journalStorage.getStudies(),
+    storage: journalStorage,
     errors,
     appliedRecords,
   }
 }
 
-export class JournalFileStorage implements OptunaStorage {
-  studies: Optuna.Study[]
+export class JournalFileStorage {
+  private readonly storage: JournalStorage
+  private readonly originalBytes: Uint8Array
+  private readonly appendedBytes: Uint8Array[] = []
+  private readonly workerId: string
+  private closed = false
   errors: { log: string; message: string }[]
   // How many lines were understood as Journal records, whether or not they left
   // a study behind. Zero means this file is not a Journal storage.
   appliedRecords: number
   constructor(arrayBuffer: ArrayBuffer) {
     const {
-      studies: studiesFromStorage,
+      storage,
       errors: errorsFromStorage,
       appliedRecords,
     } = loadJournalStorage(arrayBuffer)
-    this.studies = studiesFromStorage
+    this.storage = storage
+    this.originalBytes = new Uint8Array(arrayBuffer).slice()
     this.errors = errorsFromStorage
     this.appliedRecords = appliedRecords
+    this.workerId =
+      globalThis.crypto?.randomUUID?.() ??
+      `optuna-dashboard-${Date.now()}-${Math.random().toString(16).slice(2)}`
   }
   getStudies = async (): Promise<Optuna.StudySummary[]> => {
-    return this.studies
+    this.assertOpen()
+    return this.storage.getStudies()
   }
   getStudy = async (studyId: number): Promise<Optuna.Study | null> => {
-    return this.studies.find((study) => study.id === studyId) || null
+    this.assertOpen()
+    return (
+      this.storage.getStudies().find((study) => study.id === studyId) || null
+    )
   }
   getErrors = (): { log: string; message: string }[] => {
     return this.errors
   }
-  close = async (): Promise<void> => {}
+  getEditDisabledReason = (): string | undefined => {
+    if (this.errors.length > 0) {
+      return "This Journal contains unreadable records"
+    }
+    if (
+      this.originalBytes.length > 0 &&
+      this.originalBytes[this.originalBytes.length - 1] !== 0x0a
+    ) {
+      return "The final Journal record is not newline-terminated"
+    }
+    return undefined
+  }
+
+  applyEdit = async (edit: StorageEdit): Promise<ArrayBuffer> => {
+    this.assertOpen()
+    const editDisabledReason = this.getEditDisabledReason()
+    if (editDisabledReason !== undefined) {
+      throw new Error(editDisabledReason)
+    }
+    const operation =
+      edit.kind === "createStudy"
+        ? this.storage.createStudy(edit.name, edit.directions, this.workerId)
+        : this.storage.deleteStudy(edit.studyId, this.workerId)
+    this.appendedBytes.push(
+      new TextEncoder().encode(`${JSON.stringify(operation)}\n`)
+    )
+    return this.exportFile()
+  }
+
+  exportFile = (): ArrayBuffer => {
+    this.assertOpen()
+    const length = this.appendedBytes.reduce(
+      (total, bytes) => total + bytes.byteLength,
+      this.originalBytes.byteLength
+    )
+    const result = new Uint8Array(length)
+    result.set(this.originalBytes)
+    let offset = this.originalBytes.byteLength
+    for (const bytes of this.appendedBytes) {
+      result.set(bytes, offset)
+      offset += bytes.byteLength
+    }
+    return result.buffer
+  }
+
+  close = async (): Promise<void> => {
+    this.closed = true
+  }
+
+  private assertOpen(): void {
+    if (this.closed) {
+      throw new Error("Storage is closed")
+    }
+  }
 }

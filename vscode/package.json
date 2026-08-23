@@ -29,6 +29,18 @@
   "activationEvents": [],
   "main": "./dist/web/extension.js",
   "contributes": {
+    "customEditors": [
+      {
+        "viewType": "optuna-dashboard.storageEditor",
+        "displayName": "Optuna Dashboard",
+        "selector": [
+          { "filenamePattern": "*.db" },
+          { "filenamePattern": "*.sqlite3" },
+          { "filenamePattern": "*.log" }
+        ],
+        "priority": "option"
+      }
+    ],
     "commands": [
       {
         "command": "optuna-dashboard.openOptunaDashboard",

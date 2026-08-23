@@ -15,7 +15,7 @@
 // This file is the second: the UI thread client.
 
 import type * as Optuna from "@optuna/types"
-import type { OptunaStorage } from "./storage"
+import type { OptunaStorage, StorageEdit } from "./storage"
 import type {
   OpenStorageResult,
   StorageWorkerRequest,
@@ -27,7 +27,10 @@ import type {
 
 // Re-exported so that a UI can depend on this subpath alone: importing the
 // package root would pull the SQLite backend into the bundle.
-export type { OptunaStorage } from "./storage"
+export type {
+  OptunaStorage,
+  StorageEdit,
+} from "./storage"
 
 export type StorageWorker = {
   postMessage: (message: StorageWorkerRequest, transfer: Transferable[]) => void
@@ -160,6 +163,15 @@ export class StorageWorkerClient implements OptunaStorage {
 
   public getWarnings(): OpenStorageResult["warnings"] {
     return this.openResult?.warnings ?? []
+  }
+
+  public getEditDisabledReason(): string | undefined {
+    return this.openResult?.editDisabledReason
+  }
+
+  public applyEdit = async (edit: StorageEdit): Promise<ArrayBuffer> => {
+    await this.waitUntilReady()
+    return this.request({ type: "applyEdit", edit })
   }
 
   public getStudies = async (): Promise<Optuna.StudySummary[]> => {

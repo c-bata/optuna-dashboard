@@ -1,6 +1,7 @@
 import {
   type OptunaStorage,
   type SQLiteWasmSource,
+  type StorageEdit,
   type StorageWorkerFactory,
   openStorage,
 } from "@optuna/storage/worker-client"
@@ -19,6 +20,7 @@ export type StorageOpenOptions = {
   name?: string
   workerFactory?: StorageWorkerFactory
   sqliteWasm?: SQLiteWasmSource
+  editDisabledReason?: string
 }
 
 export const StorageContext = createContext<{
@@ -29,6 +31,10 @@ export const StorageContext = createContext<{
     options?: StorageOpenOptions
   ) => Promise<void>
   closeStorage: () => Promise<void>
+  applyEdit: (edit: StorageEdit) => Promise<void>
+  downloadStorage: () => void
+  editDisabledReason?: string
+  dirty: boolean
   loading: boolean
   error: Error | null
   reportError: (error: unknown) => void
@@ -37,6 +43,10 @@ export const StorageContext = createContext<{
   storageName: null,
   loadStorage: async () => {},
   closeStorage: async () => {},
+  applyEdit: async () => {},
+  downloadStorage: () => {},
+  editDisabledReason: undefined,
+  dirty: false,
   loading: false,
   error: null,
   reportError: () => {},
@@ -59,16 +69,23 @@ export const StorageProvider: FC<{
   children: React.ReactNode
   workerFactory?: StorageWorkerFactory
   sqliteWasm?: SQLiteWasmSource
-}> = ({ children, workerFactory, sqliteWasm }) => {
+  onStorageChange?: (buffer: ArrayBuffer) => Promise<void>
+}> = ({ children, workerFactory, sqliteWasm, onStorageChange }) => {
   const [storage, setActiveStorage] = useState<OptunaStorage | null>(null)
   const [storageName, setStorageName] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
+  const [editDisabledReason, setEditDisabledReason] = useState<
+    string | undefined
+  >()
+  const [dirty, setDirty] = useState(false)
+  const [currentBytes, setCurrentBytes] = useState<ArrayBuffer | null>(null)
   const sessionRef = useRef<StorageSession>({
     generation: 0,
     storage: null,
     loading: false,
   })
+  const editInFlightRef = useRef(false)
 
   const reportError = useCallback((loadError: unknown) => {
     const normalizedError =
@@ -90,6 +107,9 @@ export const StorageProvider: FC<{
     setStorageName(null)
     setLoading(false)
     setError(null)
+    setEditDisabledReason(undefined)
+    setDirty(false)
+    setCurrentBytes(null)
     if (currentStorage !== null) {
       try {
         await currentStorage.close()
@@ -133,6 +153,11 @@ export const StorageProvider: FC<{
         session.storage = nextStorage
         setActiveStorage(nextStorage)
         setStorageName(options.name ?? null)
+        setEditDisabledReason(
+          options.editDisabledReason ?? nextStorage.getEditDisabledReason()
+        )
+        setDirty(false)
+        setCurrentBytes(null)
       } catch (loadError) {
         if (generation === session.generation) {
           reportError(loadError)
@@ -146,6 +171,64 @@ export const StorageProvider: FC<{
     },
     [reportError, sqliteWasm, workerFactory]
   )
+
+  const applyEdit = useCallback(
+    async (edit: StorageEdit) => {
+      const currentStorage = sessionRef.current.storage
+      if (currentStorage === null) {
+        throw new Error("Storage is not open")
+      }
+      if (editDisabledReason !== undefined) {
+        throw new Error(editDisabledReason)
+      }
+      if (editInFlightRef.current) {
+        throw new Error("Another storage edit is still in progress")
+      }
+      editInFlightRef.current = true
+      try {
+        const buffer = await currentStorage.applyEdit(edit)
+        const localCopy = buffer.slice(0)
+        if (onStorageChange !== undefined) {
+          await onStorageChange(buffer)
+        }
+        setCurrentBytes(localCopy)
+        setDirty(true)
+      } catch (editError) {
+        reportError(editError)
+        throw editError
+      } finally {
+        editInFlightRef.current = false
+      }
+    },
+    [editDisabledReason, onStorageChange, reportError]
+  )
+
+  const downloadStorage = useCallback(() => {
+    if (currentBytes === null) {
+      return
+    }
+    const url = URL.createObjectURL(
+      new Blob([currentBytes], { type: "application/octet-stream" })
+    )
+    const anchor = document.createElement("a")
+    anchor.href = url
+    anchor.download = storageName ?? "optuna-storage"
+    anchor.click()
+    URL.revokeObjectURL(url)
+    setDirty(false)
+  }, [currentBytes, storageName])
+
+  useEffect(() => {
+    if (!dirty || IS_VSCODE) {
+      return
+    }
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ""
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [dirty])
 
   useEffect(() => {
     const session = sessionRef.current
@@ -167,6 +250,10 @@ export const StorageProvider: FC<{
         storageName,
         loadStorage,
         closeStorage,
+        applyEdit,
+        downloadStorage,
+        editDisabledReason,
+        dirty,
         loading,
         error,
         reportError,

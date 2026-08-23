@@ -1,15 +1,22 @@
-import { Search } from "@mui/icons-material"
+import { Add, Delete, Download, Search } from "@mui/icons-material"
 import Brightness4Icon from "@mui/icons-material/Brightness4"
 import Brightness7Icon from "@mui/icons-material/Brightness7"
 import SortIcon from "@mui/icons-material/Sort"
 import {
+  Alert,
   AppBar,
   Box,
+  Button,
   Card,
   CardActionArea,
   CardContent,
   Chip,
   Container,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   IconButton,
   InputAdornment,
   MenuItem,
@@ -24,6 +31,7 @@ import { styled } from "@mui/system"
 import * as Optuna from "@optuna/types"
 import {
   FC,
+  useCallback,
   useContext,
   useDeferredValue,
   useEffect,
@@ -38,36 +46,90 @@ export const StudyList: FC<{
   toggleColorMode: () => void
 }> = ({ toggleColorMode }) => {
   const theme = useTheme()
-  const { storage, storageName, closeStorage, reportError } =
-    useContext(StorageContext)
+  const {
+    storage,
+    storageName,
+    closeStorage,
+    applyEdit,
+    downloadStorage,
+    editDisabledReason,
+    dirty,
+    reportError,
+  } = useContext(StorageContext)
   const [studies, setStudies] = useState<Optuna.StudySummary[]>([])
+  const [editing, setEditing] = useState(false)
+  const [createStudyOpen, setCreateStudyOpen] = useState(false)
+  const [studyName, setStudyName] = useState("")
+  const [directionsInput, setDirectionsInput] = useState("minimize")
+  const [studyToDelete, setStudyToDelete] =
+    useState<Optuna.StudySummary | null>(null)
+  const editable = storage !== null && editDisabledReason === undefined
 
   const [_studyFilterText, setStudyFilterText] = useState<string>("")
   const [sortBy, setSortBy] = useState<"id-asc" | "id-desc">("id-asc")
   const studyFilterText = useDeferredValue(_studyFilterText)
-  useEffect(() => {
-    let active = true
-    const fetchStudies = async () => {
-      if (storage === null) {
-        setStudies([])
-        return
-      }
-      try {
-        const studies = await storage.getStudies()
-        if (active) {
-          setStudies(studies)
-        }
-      } catch (error) {
-        if (active) {
-          reportError(error)
-        }
-      }
+  const refreshStudies = useCallback(async () => {
+    if (storage === null) {
+      setStudies([])
+      return
     }
-    void fetchStudies()
-    return () => {
-      active = false
+    try {
+      setStudies(await storage.getStudies())
+    } catch (error) {
+      reportError(error)
     }
   }, [reportError, storage])
+
+  useEffect(() => {
+    void refreshStudies()
+  }, [refreshStudies])
+
+  const createStudy = async () => {
+    const directions = directionsInput
+      .split(",")
+      .map((direction) => direction.trim().toLowerCase())
+    if (
+      directions.length === 0 ||
+      directions.some(
+        (direction) => direction !== "minimize" && direction !== "maximize"
+      )
+    ) {
+      reportError(new Error("Directions must be minimize or maximize"))
+      return
+    }
+    setEditing(true)
+    try {
+      await applyEdit({
+        kind: "createStudy",
+        name: studyName,
+        directions: directions as Optuna.StudyDirection[],
+      })
+      await refreshStudies()
+      setCreateStudyOpen(false)
+      setStudyName("")
+      setDirectionsInput("minimize")
+    } catch {
+      // StorageProvider reports the actionable error.
+    } finally {
+      setEditing(false)
+    }
+  }
+
+  const deleteStudy = async () => {
+    if (studyToDelete === null) {
+      return
+    }
+    setEditing(true)
+    try {
+      await applyEdit({ kind: "deleteStudy", studyId: studyToDelete.id })
+      await refreshStudies()
+      setStudyToDelete(null)
+    } catch {
+      // StorageProvider reports the actionable error.
+    } finally {
+      setEditing(false)
+    }
+  }
   const filteredStudies = useMemo(() => {
     const studyFilter = (row: Optuna.StudySummary): boolean => {
       const keywords = studyFilterText.split(" ")
@@ -148,7 +210,14 @@ export const StudyList: FC<{
                   label={storageName}
                   variant="outlined"
                   onDelete={() => {
-                    void closeStorage()
+                    if (
+                      !dirty ||
+                      window.confirm(
+                        "Discard edits that have not been downloaded?"
+                      )
+                    ) {
+                      void closeStorage()
+                    }
                   }}
                   sx={{
                     marginRight: theme.spacing(1),
@@ -215,36 +284,135 @@ export const StudyList: FC<{
               />
               {sortBySelect}
               <Box sx={{ flexGrow: 1 }} />
+              {!IS_VSCODE && dirty && (
+                <Button
+                  startIcon={<Download />}
+                  onClick={downloadStorage}
+                  sx={{ marginRight: theme.spacing(1) }}
+                >
+                  Download modified file
+                </Button>
+              )}
+              {editable && (
+                <Button
+                  variant="contained"
+                  startIcon={<Add />}
+                  onClick={() => setCreateStudyOpen(true)}
+                  disabled={editing}
+                >
+                  Create Study
+                </Button>
+              )}
             </Box>
           </CardContent>
         </Card>
+        {editDisabledReason !== undefined && (
+          <Alert severity="info" sx={{ margin: theme.spacing(2) }}>
+            Editing disabled: {editDisabledReason}
+          </Alert>
+        )}
         <Box sx={{ display: "flex", flexWrap: "wrap" }}>
           {filteredStudies.map((study) => (
             <Card
               key={study.id}
               sx={{ margin: theme.spacing(2), width: "500px" }}
             >
-              <CardActionArea component={Link} to={`/study/${study.id}`}>
-                <CardContent>
-                  <Typography variant="h5" sx={{ wordBreak: "break-all" }}>
-                    {study.id}. {study.name}
-                  </Typography>
-                  <Typography
-                    variant="subtitle1"
-                    color="text.secondary"
-                    component="div"
-                  >
-                    {`Direction: ${study.directions
-                      .map((d) => d.toUpperCase())
-                      .join(", ")}`}
-                  </Typography>
-                </CardContent>
-              </CardActionArea>
+              <Box sx={{ display: "flex", alignItems: "stretch" }}>
+                <CardActionArea component={Link} to={`/study/${study.id}`}>
+                  <CardContent>
+                    <Typography variant="h5" sx={{ wordBreak: "break-all" }}>
+                      {study.id}. {study.name}
+                    </Typography>
+                    <Typography
+                      variant="subtitle1"
+                      color="text.secondary"
+                      component="div"
+                    >
+                      {`Direction: ${study.directions
+                        .map((d) => d.toUpperCase())
+                        .join(", ")}`}
+                    </Typography>
+                  </CardContent>
+                </CardActionArea>
+                {editable && (
+                  <Tooltip title="Delete study">
+                    <IconButton
+                      aria-label={`Delete ${study.name}`}
+                      onClick={() => setStudyToDelete(study)}
+                      disabled={editing}
+                      sx={{ margin: theme.spacing(1) }}
+                    >
+                      <Delete />
+                    </IconButton>
+                  </Tooltip>
+                )}
+              </Box>
             </Card>
           ))}
         </Box>
         {!IS_VSCODE && storage === null && <StorageLoader />}
       </Container>
+      <Dialog
+        open={createStudyOpen}
+        onClose={() => !editing && setCreateStudyOpen(false)}
+      >
+        <DialogTitle>Create Study</DialogTitle>
+        <DialogContent sx={{ minWidth: 420 }}>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Study name"
+            value={studyName}
+            onChange={(event) => setStudyName(event.target.value)}
+            sx={{ marginTop: theme.spacing(1), marginBottom: theme.spacing(2) }}
+          />
+          <TextField
+            fullWidth
+            label="Directions"
+            value={directionsInput}
+            onChange={(event) => setDirectionsInput(event.target.value)}
+            helperText="Use minimize or maximize, separated by commas."
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreateStudyOpen(false)} disabled={editing}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => void createStudy()}
+            disabled={editing || studyName.trim() === ""}
+          >
+            Create
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={studyToDelete !== null}
+        onClose={() => !editing && setStudyToDelete(null)}
+      >
+        <DialogTitle>Delete Study?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Delete &apos;{studyToDelete?.name}&apos; and all of its trials?
+            {IS_VSCODE &&
+              " If Auto Save is enabled, this may be saved immediately."}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setStudyToDelete(null)} disabled={editing}>
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={() => void deleteStudy()}
+            disabled={editing}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   )
 }
