@@ -99,7 +99,7 @@ describe("Rustuna Journal adapter", () => {
         worker_id: "python",
         study_id: 0,
         state: 2,
-        values: [0.25],
+        intermediate_values: { 0: 0.5, 1: 0.25, 2: 0.75 },
         params: { category: 0 },
         distributions: { category: categorical },
       },
@@ -135,6 +135,38 @@ describe("Rustuna Journal adapter", () => {
     assert.deepEqual(study.union_user_attrs, [
       { key: "owner", sortable: false },
     ])
+  })
+
+  it("derives pruned values from intermediate values in either direction", async () => {
+    for (const [direction, expected] of [
+      [1, -2],
+      [2, 3],
+    ]) {
+      const storage = RustunaStorage.openJournal(
+        encodeJournal([
+          {
+            op_code: 0,
+            worker_id: "python",
+            study_name: "pruned",
+            directions: [direction],
+          },
+          {
+            op_code: 4,
+            worker_id: "python",
+            study_id: 0,
+            state: 2,
+            intermediate_values: { 0: 3, 1: "NaN", 2: -2 },
+          },
+        ])
+      )
+      try {
+        assert.deepEqual((await storage.getStudy(0))?.trials[0].values, [
+          expected,
+        ])
+      } finally {
+        await storage.close()
+      }
+    }
   })
 
   it("reports malformed records while keeping readable records", async () => {

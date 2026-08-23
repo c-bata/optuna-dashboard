@@ -81,7 +81,9 @@ export class RustunaStorage implements OptunaStorage {
     if (study === undefined) {
       return null
     }
-    const trials = this.native.getTrials(studyId).map(toTrial)
+    const trials = this.native
+      .getTrials(studyId)
+      .map((trial) => toTrial(trial, study.directions[0]))
     const unionSearchSpace: Optuna.SearchSpaceItem[] = []
     let intersectionSearchSpace: Optuna.SearchSpaceItem[] = []
     const unionUserAttrs = new Set<string>()
@@ -171,12 +173,15 @@ const toStudySummary = (study: StorageStudy): Optuna.StudySummary => ({
   directions: study.directions,
 })
 
-const toTrial = (trial: StorageTrial): Optuna.Trial => ({
+const toTrial = (
+  trial: StorageTrial,
+  direction: StorageStudy["directions"][number] | undefined
+): Optuna.Trial => ({
   trial_id: trial.id,
   study_id: trial.studyId,
   number: trial.number,
   state: trial.state,
-  values: trial.values,
+  values: trial.values ?? getPrunedValues(trial, direction),
   params: trial.params.map(({ name, internalValue, distribution }) => {
     const converted = toDistribution(distribution)
     return {
@@ -205,6 +210,26 @@ const toTrial = (trial: StorageTrial): Optuna.Trial => ({
       ? undefined
       : new Date(trial.datetimeComplete),
 })
+
+const getPrunedValues = (
+  trial: StorageTrial,
+  direction: StorageStudy["directions"][number] | undefined
+): number[] | undefined => {
+  if (
+    trial.state !== "Pruned" ||
+    trial.intermediateValues.length === 0 ||
+    direction === undefined
+  ) {
+    return undefined
+  }
+  const values = trial.intermediateValues
+    .map(({ value }) => value)
+    .filter((value) => !Number.isNaN(value))
+  if (values.length === 0) {
+    return [Number.NaN]
+  }
+  return [direction === "maximize" ? Math.max(...values) : Math.min(...values)]
+}
 
 const toDistribution = (
   distribution: StorageDistribution
