@@ -1,9 +1,8 @@
 // @optuna/storage has three entry points, one per execution context:
 //
-//   - `@optuna/storage` (index.ts): the storage backends themselves. Importing
-//     it pulls the sqlite-wasm glue into the bundle, so it belongs in the
-//     Worker, or in a consumer that knowingly parses storages on its own
-//     thread.
+//   - `@optuna/storage` (index.ts): the Rustuna adapter. Importing it pulls the
+//     Rustuna WebAssembly glue into the bundle, so it belongs in the Worker, or
+//     in a consumer that knowingly parses storages on its own thread.
 //   - `@optuna/storage/worker-client` (worker_client.ts): the client that talks
 //     to the storage Worker. It runs on the UI thread and has no runtime
 //     dependency of its own.
@@ -12,10 +11,9 @@
 //     bundler, as `new URL(..., import.meta.url)` for Vite or as an entry point
 //     for webpack.
 //
-// This file is the first of those: the backends.
+// This file is the first of those: the adapter.
 
-export { JournalFileStorage } from "./journal.js"
-export { SQLite3Storage } from "./sqlite.js"
+export { RustunaStorage } from "./rustuna.js"
 export {
   openStorage,
   StorageWorkerClient,
@@ -25,13 +23,12 @@ export type {
   OptunaStorage,
   StorageEdit,
 } from "./storage.js"
-export type { SQLiteWasmOptions } from "./sqlite.js"
 // The request and response types stay internal: they describe the wire between
 // the client and the Worker, and a consumer that reaches for them is talking to
 // the Worker without the client.
 export type { OpenStorageResult, StorageWarning } from "./worker_protocol.js"
 export type {
-  SQLiteWasmSource,
+  RustunaWasmSource,
   StorageWorker,
   StorageWorkerFactory,
   StorageWorkerHandle,

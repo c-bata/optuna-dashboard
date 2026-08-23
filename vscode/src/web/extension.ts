@@ -205,7 +205,7 @@ class OptunaStorageEditorProvider
       name: document.uri.path.split("/").pop(),
       editDisabledReason: document.editDisabledReason,
       workerUri: asset("storage-worker.js").toString(),
-      sqliteWasmUri: asset("sqlite3.wasm").toString(),
+      rustunaWasmUri: asset("rustuna_bg.wasm").toString(),
     })
   }
 

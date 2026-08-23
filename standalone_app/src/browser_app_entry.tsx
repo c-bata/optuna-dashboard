@@ -1,4 +1,4 @@
-import sqliteWasmUrl from "@optuna/storage/sqlite-wasm"
+import rustunaWasmUrl from "@optuna/storage/rustuna-wasm"
 import type { StorageWorkerFactory } from "@optuna/storage/worker-client"
 import React from "react"
 import ReactDOM from "react-dom/client"
@@ -21,7 +21,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <StorageProvider
       workerFactory={workerFactory}
-      sqliteWasm={{ url: sqliteWasmUrl }}
+      rustunaWasm={{ url: rustunaWasmUrl }}
     >
       <App />
     </StorageProvider>

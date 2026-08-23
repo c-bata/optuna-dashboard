@@ -32,7 +32,7 @@ type WebviewMessage = {
   name?: string
   editDisabledReason?: string
   workerUri: string
-  sqliteWasmUri: string
+  rustunaWasmUri: string
 }
 
 type ReloadMessage = {
@@ -83,15 +83,15 @@ export const AppWrapper: FC = () => {
           void (async () => {
             try {
               documentWorkerUri = message.workerUri
-              documentWasmUri = message.sqliteWasmUri
+              documentWasmUri = message.rustunaWasmUri
               await loadStorage(buffer, {
                 name: message.name,
                 editDisabledReason: message.editDisabledReason,
                 workerFactory: createWebviewWorkerFactory(message.workerUri),
-                sqliteWasm: {
+                rustunaWasm: {
                   buffer: await fetchAsset(
-                    message.sqliteWasmUri,
-                    "SQLite wasm"
+                    message.rustunaWasmUri,
+                    "Rustuna wasm"
                   ),
                 },
               })
@@ -113,8 +113,8 @@ export const AppWrapper: FC = () => {
               await loadStorage(toArrayBuffer(message.content), {
                 editDisabledReason: message.editDisabledReason,
                 workerFactory: createWebviewWorkerFactory(workerUri),
-                sqliteWasm: {
-                  buffer: await fetchAsset(wasmUri, "SQLite wasm"),
+                rustunaWasm: {
+                  buffer: await fetchAsset(wasmUri, "Rustuna wasm"),
                 },
               })
             } catch (error) {

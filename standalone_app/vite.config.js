@@ -6,13 +6,10 @@ export default defineConfig({
   define: {
     'IS_VSCODE': JSON.stringify(false),
   },
-  optimizeDeps: {
-    exclude: ['@sqlite.org/sqlite-wasm'],
-  },
   server: {
     fs: {
         // Allow serving wasm files in node_modules
-        allow: ['..'],
+        allow: ['..', '../../rustuna/rustuna_js'],
     },
   },
 });

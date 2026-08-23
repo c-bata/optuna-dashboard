@@ -313,9 +313,9 @@ importers:
 
   tslib/storage:
     dependencies:
-      '@sqlite.org/sqlite-wasm':
-        specifier: ^3.45.1-build1
-        version: 3.45.1-build1
+      rustuna:
+        specifier: link:../../../rustuna/rustuna_js
+        version: link:../../../rustuna/rustuna_js
     devDependencies:
       '@optuna/types':
         specifier: workspace:*
@@ -1078,10 +1078,6 @@ packages:
     resolution: {integrity: sha512-5L+T1fMX4RIEBoZzT0+sQ0PhTS36NULFmMXtl1TZo44TMAROIMHbZufSOjVWt/Y622BtxgxtaNOokbTDvfsrZA==}
     cpu: [x64]
     os: [win32]
-
-  '@sqlite.org/sqlite-wasm@3.45.1-build1':
-    resolution: {integrity: sha512-1EgshFNhVeBtZ9KtQPm3PzzJ2CtpmXAq2DAPywy7WZ3gOK6p5n8TY+M+mBMpQCF5cLqrdNFb3Kp9uNie9rUAHw==}
-    hasBin: true
 
   '@swc/core-darwin-arm64@1.15.33':
     resolution: {integrity: sha512-N+L0uXhuO7FIfzqwgxmzv0zIpV0qEp8wPX3QQs2p4atjMoywup2JTeDlXPw+z9pWJGCae3JjM+tZ6myclI+2gA==}
@@ -3926,8 +3922,6 @@ snapshots:
 
   '@rollup/rollup-win32-x64-msvc@4.62.0':
     optional: true
-
-  '@sqlite.org/sqlite-wasm@3.45.1-build1': {}
 
   '@swc/core-darwin-arm64@1.15.33':
     optional: true

@@ -16,8 +16,8 @@ export type StorageWorkerRequestBody =
   | {
       type: "open"
       buffer: ArrayBuffer
-      sqliteWasmUrl?: string
-      sqliteWasmBuffer?: ArrayBuffer
+      rustunaWasmUrl?: string
+      rustunaWasmBuffer?: ArrayBuffer
     }
   | { type: "getStudies" }
   | { type: "getStudy"; studyId: number }

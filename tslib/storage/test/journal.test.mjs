@@ -1,163 +1,154 @@
-import assert from "node:assert"
-import { openAsBlob } from "node:fs"
-import path from "node:path"
+import assert from "node:assert/strict"
+import { readFile } from "node:fs/promises"
 import { describe, it } from "node:test"
+import { initSync } from "rustuna/web"
 
-import * as mut from "../pkg/journal.js"
+import { RustunaStorage } from "../pkg/rustuna.js"
 
-describe("Test Journal File Storage", async () => {
-  const blob = await openAsBlob(
-    path.resolve(".", "test", "asset", "journal.log")
-  )
-  const buf = await blob.arrayBuffer()
-  const storage = new mut.JournalFileStorage(buf)
-  const studySummaries = await storage.getStudies()
-  const studies = await Promise.all(
-    studySummaries.map((summary) => storage.getStudy(summary.id))
-  )
+const rustunaWasmUrl = new URL(
+  "../node_modules/rustuna/pkg/web/rustuna_bg.wasm",
+  import.meta.url
+)
+initSync({ module: await readFile(rustunaWasmUrl) })
 
+const encodeJournal = (records) =>
+  new TextEncoder().encode(
+    `${records.map((record) => JSON.stringify(record)).join("\n")}\n`
+  ).buffer
+
+describe("Rustuna Journal adapter", () => {
   it("loads a study by its ID instead of its position", async () => {
-    const journal = [
-      {
-        op_code: 0,
-        workor_id: "0000",
-        study_name: "study-0",
-        directions: [1],
-      },
-      {
-        op_code: 0,
-        workor_id: "0000",
-        study_name: "study-1",
-        directions: [1],
-      },
-      { op_code: 1, workor_id: "0000", study_id: 1 },
-      {
-        op_code: 0,
-        workor_id: "0000",
-        study_name: "study-2",
-        directions: [1],
-      },
-    ]
-      .map((operation) => JSON.stringify(operation))
-      .join("\n")
-    const storage = new mut.JournalFileStorage(
-      new TextEncoder().encode(journal).buffer
+    const storage = RustunaStorage.openJournal(
+      encodeJournal([
+        {
+          op_code: 0,
+          worker_id: "python",
+          study_name: "study-0",
+          directions: [1],
+        },
+        {
+          op_code: 0,
+          worker_id: "python",
+          study_name: "study-1",
+          directions: [1],
+        },
+        { op_code: 1, worker_id: "python", study_id: 1 },
+        {
+          op_code: 0,
+          worker_id: "python",
+          study_name: "study-2",
+          directions: [1],
+        },
+      ])
     )
-    const summaries = await storage.getStudies()
 
-    assert.deepStrictEqual(
-      summaries.map((summary) => summary.id),
+    assert.deepEqual(
+      (await storage.getStudies()).map((summary) => summary.id),
       [0, 2]
     )
-    assert.strictEqual(await storage.getStudy(1), null)
-    const study = await storage.getStudy(2)
-    assert.strictEqual(study?.name, "study-2")
+    assert.equal(await storage.getStudy(1), null)
+    assert.equal((await storage.getStudy(2))?.name, "study-2")
   })
 
-  it("Check the study with dynamic search space", () => {
-    const study = studies.find((s) => s.name === "single-objective-dynamic")
-    assert.deepStrictEqual(
-      study.union_search_space.map((item) => item.name).sort(),
-      ["x", "x", "category"].sort()
-    )
-    assert.strictEqual(
-      study.union_search_space.some(
-        (item) =>
-          item.name === "category" &&
-          item.distribution.type === "CategoricalDistribution" &&
-          item.distribution.choices.length === 2
-      ),
-      true
-    )
-    assert.strictEqual(
-      study.union_search_space.some(
-        (item) =>
-          item.name === "x" &&
-          item.distribution.type === "FloatDistribution" &&
-          item.distribution.low === 0 &&
-          item.distribution.high === 10 &&
-          item.distribution.step === null &&
-          item.distribution.log === false
-      ),
-      true
-    )
-    assert.strictEqual(
-      study.union_search_space.some(
-        (item) =>
-          item.name === "x" &&
-          item.distribution.type === "FloatDistribution" &&
-          item.distribution.low === -10 &&
-          item.distribution.high === 0 &&
-          item.distribution.step === null &&
-          item.distribution.log === false
-      ),
-      true
-    )
-    assert.deepStrictEqual(
-      study.intersection_search_space.map((item) => item.name).sort(),
-      ["category"].sort()
-    )
-    assert.strictEqual(
-      study.intersection_search_space.some(
-        (item) =>
-          item.name === "category" &&
-          item.distribution.type === "CategoricalDistribution" &&
-          item.distribution.choices.length === 2
-      ),
-      true
-    )
-  })
-
-  it("Check the study including Infinities", () => {
-    const study = studies.find((s) => s.name === "single-inf")
-    study.trials.forEach((trial, index) => {
-      if (index % 3 === 0) {
-        assert.strictEqual(trial.values[0], Infinity)
-      } else if (index % 3 === 1) {
-        assert.strictEqual(trial.values[0], -Infinity)
-      }
+  it("converts dynamic search spaces, attrs, metrics, and non-finite values", async () => {
+    const float = (low, high) =>
+      JSON.stringify({
+        name: "FloatDistribution",
+        attributes: { low, high, step: null, log: false },
+      })
+    const categorical = JSON.stringify({
+      name: "CategoricalDistribution",
+      attributes: { choices: ["a", "b"] },
     })
-  })
-
-  it("Check the study including NaNs", () => {
-    const study = studies.find((s) => s.name === "single-nan-report")
-    for (const trial of study.trials) {
-      assert.strictEqual(
-        trial.intermediate_values.find((v) => v.step === 1).value,
-        NaN
-      )
-    }
-  })
-
-  it("Check the parsing errors", async () => {
-    const blob = await openAsBlob(
-      path.resolve(".", "test", "asset", "journal-broken.log")
+    const records = [
+      {
+        op_code: 0,
+        worker_id: "python",
+        study_name: "dynamic",
+        directions: [1],
+      },
+      {
+        op_code: 3,
+        worker_id: "python",
+        study_id: 0,
+        system_attr: { "study:metric_names": ["objective"] },
+      },
+      {
+        op_code: 4,
+        worker_id: "python",
+        study_id: 0,
+        state: 1,
+        values: ["__INF__"],
+        params: { x: 0.5, category: 1 },
+        distributions: { x: float(0, 1), category: categorical },
+        intermediate_values: { 1: "__NAN__" },
+        user_attrs: { owner: "alice" },
+        system_attrs: { constraints: [-1, 2] },
+      },
+      {
+        op_code: 4,
+        worker_id: "python",
+        study_id: 0,
+        state: 1,
+        values: [0.5],
+        params: { x: -0.5, category: 0 },
+        distributions: { x: float(-1, 0), category: categorical },
+      },
+      {
+        op_code: 4,
+        worker_id: "python",
+        study_id: 0,
+        state: 2,
+        values: [0.25],
+        params: { category: 0 },
+        distributions: { category: categorical },
+      },
+    ]
+    const text = `${records
+      .map((record) => JSON.stringify(record))
+      .join("\n")
+      .replace('"__INF__"', "Infinity")
+      .replace('"__NAN__"', "NaN")}\n`
+    const storage = RustunaStorage.openJournal(
+      new TextEncoder().encode(text).buffer
     )
-    const buf = await blob.arrayBuffer()
-    const storage = new mut.JournalFileStorage(buf)
-    const errors = storage.getErrors()
+    const study = await storage.getStudy(0)
 
-    assert.strictEqual(errors.length, 1)
-    assert.strictEqual(
-      errors[0].message,
-      `Unexpected token '.', ..."op_code": ..., "work"... is not valid JSON`
+    assert.ok(study)
+    assert.deepEqual(study.metric_names, ["objective"])
+    assert.deepEqual(study.union_search_space.map(({ name }) => name).sort(), [
+      "category",
+      "x",
+      "x",
+    ])
+    assert.deepEqual(
+      study.intersection_search_space.map(({ name }) => name),
+      ["category"]
     )
+    assert.equal(study.trials[0].values?.[0], Infinity)
+    assert.equal(
+      Number.isNaN(study.trials[0].intermediate_values[0].value),
+      true
+    )
+    assert.deepEqual(study.trials[0].constraints, [-1, 2])
+    assert.deepEqual(study.trials[2].values, [0.25])
+    assert.deepEqual(study.union_user_attrs, [
+      { key: "owner", sortable: false },
+    ])
   })
 
-  it("Check metric_names function", () => {
-    const study = studies.find((s) => s.name === "multi-objective-metric-names")
-    assert.deepStrictEqual(study.metric_names, ["value1", "value2"])
-  })
+  it("reports malformed records while keeping readable records", async () => {
+    const storage = RustunaStorage.openJournal(
+      new TextEncoder().encode(
+        '{"op_code":0,"worker_id":"python","study_name":"ok","directions":[1]}\n' +
+          "not-json\n"
+      ).buffer
+    )
 
-  it("Check the study with constraints", () => {
-    const study = studies.find((s) => s.name === "multi-objective-constraints")
-    for (const trial of study.trials) {
-      assert.strictEqual(trial.constraints.length, 2)
-    }
-  })
-
-  it("Check the number of studies", () => {
-    const N_STUDIES = 6
-    assert.strictEqual(studies.length, N_STUDIES)
+    assert.equal(storage.getWarnings().length, 1)
+    assert.deepEqual(
+      (await storage.getStudies()).map(({ name }) => name),
+      ["ok"]
+    )
   })
 })

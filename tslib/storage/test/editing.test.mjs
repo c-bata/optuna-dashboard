@@ -1,38 +1,32 @@
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import { describe, it } from "node:test"
+import { initSync } from "rustuna/web"
 
-import { JournalFileStorage } from "../pkg/journal.js"
-import { SQLite3Storage } from "../pkg/sqlite.js"
+import { RustunaStorage } from "../pkg/rustuna.js"
 
 const sqliteAssetUrl = new URL(
   "../../react/public/sample_db.sqlite3",
   import.meta.url
 )
-const sqliteWasmUrl = new URL(
-  "../node_modules/@sqlite.org/sqlite-wasm/sqlite-wasm/jswasm/sqlite3.wasm",
+const rustunaWasmUrl = new URL(
+  "../node_modules/rustuna/pkg/web/rustuna_bg.wasm",
   import.meta.url
 )
 
 const readAsset = async (url) => Uint8Array.from(await readFile(url)).buffer
 
-const openSQLite = async (buffer) => {
-  const storage = new SQLite3Storage(
-    buffer ?? (await readAsset(sqliteAssetUrl)),
-    {
-      sqliteWasmBuffer: await readAsset(sqliteWasmUrl),
-    }
-  )
-  await storage.waitUntilReady()
-  return storage
-}
+initSync({ module: await readAsset(rustunaWasmUrl) })
+
+const openSQLite = async (buffer) =>
+  RustunaStorage.openSQLite(buffer ?? (await readAsset(sqliteAssetUrl)))
 
 describe("editable storage", () => {
   it("appends compatible multi-objective Journal operations", async () => {
     const original =
       '{"op_code":0,"worker_id":"python","study_name":"first","directions":[1]}\n' +
       '{"op_code":1,"worker_id":"python","study_id":0}\n'
-    const storage = new JournalFileStorage(
+    const storage = RustunaStorage.openJournal(
       new TextEncoder().encode(original).buffer
     )
 
@@ -58,14 +52,14 @@ describe("editable storage", () => {
   })
 
   it("makes incomplete or unreadable Journals read-only", () => {
-    const incomplete = new JournalFileStorage(
+    const incomplete = RustunaStorage.openJournal(
       new TextEncoder().encode(
         '{"op_code":0,"worker_id":"x","study_name":"x","directions":[1]}'
       ).buffer
     )
     assert.match(incomplete.getEditDisabledReason(), /newline-terminated/)
 
-    const unreadable = new JournalFileStorage(
+    const unreadable = RustunaStorage.openJournal(
       new TextEncoder().encode("not-json\n").buffer
     )
     assert.match(unreadable.getEditDisabledReason(), /unreadable/)

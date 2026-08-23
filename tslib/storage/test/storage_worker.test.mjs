@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
+import { DatabaseSync } from "node:sqlite"
 import { describe, it } from "node:test"
 import { Worker as NodeWorker } from "node:worker_threads"
 
@@ -8,8 +9,8 @@ import { StorageWorkerClient } from "../pkg/worker_client.js"
 const workerModuleUrl = new URL("../pkg/storage_worker.js", import.meta.url)
 const sqliteAssetUrl = new URL("./asset/db.sqlite3", import.meta.url)
 const journalAssetUrl = new URL("./asset/journal.log", import.meta.url)
-const sqliteWasmUrl = new URL(
-  "../node_modules/@sqlite.org/sqlite-wasm/sqlite-wasm/jswasm/sqlite3.wasm",
+const rustunaWasmUrl = new URL(
+  "../node_modules/rustuna/pkg/web/rustuna_bg.wasm",
   import.meta.url
 )
 
@@ -61,30 +62,23 @@ const readAsset = async (url) => {
   return Uint8Array.from(bytes).buffer
 }
 
-// A SQLite database that Optuna never wrote, built with the same library the
-// backend uses so that it is a real one, header and page layout included.
-const createForeignSQLiteFile = async () => {
-  const { default: sqlite3InitModule } = await import("../pkg/sqlite_init.js")
-  const sqlite3 = await sqlite3InitModule({
-    print: () => {},
-    printErr: () => {},
-    wasmBinary: await readAsset(sqliteWasmUrl),
-    locateFile: (path) => path,
-  })
-  const db = new sqlite3.oo1.DB()
-  try {
-    db.exec("CREATE TABLE unrelated (a)")
-    return sqlite3.capi.sqlite3_js_db_export(db.pointer).slice().buffer
-  } finally {
-    db.close()
-  }
+// A SQLite database that Optuna never wrote. Node's in-memory SQLite can be
+// serialized directly, so the test does not need a second SQLite WASM engine.
+const createForeignSQLiteFile = () => {
+  const db = new DatabaseSync(":memory:")
+  db.exec("CREATE TABLE unrelated (a)")
+  // `serialize()` is available in Node 22 and later.
+  const serialized = db.serialize()
+  db.close()
+  return serialized.slice().buffer
 }
 
 describe("storage worker", () => {
   it("opens Journal storage in the common worker", async () => {
     const storage = await StorageWorkerClient.open(
       await readAsset(journalAssetUrl),
-      createWorkerFactory()
+      createWorkerFactory(),
+      { buffer: await readAsset(rustunaWasmUrl) }
     )
     try {
       const studies = await storage.getStudies()
@@ -102,7 +96,7 @@ describe("storage worker", () => {
     const storage = await StorageWorkerClient.open(
       await readAsset(sqliteAssetUrl),
       createWorkerFactory(),
-      { buffer: await readAsset(sqliteWasmUrl) }
+      { buffer: await readAsset(rustunaWasmUrl) }
     )
     try {
       const studies = await storage.getStudies()
@@ -127,7 +121,8 @@ describe("storage worker", () => {
       await assert.rejects(
         StorageWorkerClient.open(
           new TextEncoder().encode(content).buffer,
-          createWorkerFactory()
+          createWorkerFactory(),
+          { buffer: await readAsset(rustunaWasmUrl) }
         ),
         { code: "unsupported_format" },
         label
@@ -137,7 +132,9 @@ describe("storage worker", () => {
 
   it("rejects an empty file", async () => {
     await assert.rejects(
-      StorageWorkerClient.open(new ArrayBuffer(0), createWorkerFactory()),
+      StorageWorkerClient.open(new ArrayBuffer(0), createWorkerFactory(), {
+        buffer: await readAsset(rustunaWasmUrl),
+      }),
       { code: "empty_file" }
     )
   })
@@ -145,9 +142,9 @@ describe("storage worker", () => {
   it("rejects a SQLite database that Optuna never wrote", async () => {
     await assert.rejects(
       StorageWorkerClient.open(
-        await createForeignSQLiteFile(),
+        createForeignSQLiteFile(),
         createWorkerFactory(),
-        { buffer: await readAsset(sqliteWasmUrl) }
+        { buffer: await readAsset(rustunaWasmUrl) }
       ),
       { code: "unsupported_format" }
     )
@@ -157,13 +154,14 @@ describe("storage worker", () => {
     // Creating and deleting a study leaves records but no study, which is a
     // storage with nothing in it rather than a file of the wrong format.
     const content = [
-      '{"op_code": 0, "workder_id": "0", "study_name": "gone", "directions": [1]}',
-      '{"op_code": 1, "workder_id": "0", "study_id": 0}',
+      '{"op_code": 0, "worker_id": "0", "study_name": "gone", "directions": [1]}',
+      '{"op_code": 1, "worker_id": "0", "study_id": 0}',
       "",
     ].join("\n")
     const storage = await StorageWorkerClient.open(
       new TextEncoder().encode(content).buffer,
-      createWorkerFactory()
+      createWorkerFactory(),
+      { buffer: await readAsset(rustunaWasmUrl) }
     )
     try {
       assert.deepEqual(await storage.getStudies(), [])
@@ -177,7 +175,8 @@ describe("storage worker", () => {
       '{"op_code":0,"worker_id":"python","study_name":"first","directions":[1]}\n'
     const storage = await StorageWorkerClient.open(
       new TextEncoder().encode(content).buffer,
-      createWorkerFactory()
+      createWorkerFactory(),
+      { buffer: await readAsset(rustunaWasmUrl) }
     )
     try {
       const edit = storage.applyEdit({
@@ -215,13 +214,13 @@ describe("storage worker", () => {
     }
   })
 
-  it("reports a missing SQLite wasm asset after transferring the database", async () => {
+  it("reports a missing Rustuna wasm asset after transferring the database", async () => {
     await assert.rejects(
       StorageWorkerClient.open(
         await readAsset(sqliteAssetUrl),
         createWorkerFactory()
       ),
-      { code: "missing_sqlite_wasm" }
+      { code: "missing_rustuna_wasm" }
     )
   })
 })

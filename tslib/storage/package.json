@@ -14,9 +14,9 @@
       "types": "./pkg/worker_client.d.ts",
       "import": "./pkg/worker_client.js"
     },
-    "./sqlite-wasm": {
-      "types": "./pkg/sqlite_wasm.d.ts",
-      "import": "./pkg/sqlite_wasm.js"
+    "./rustuna-wasm": {
+      "types": "./pkg/rustuna_wasm.d.ts",
+      "import": "./pkg/rustuna_wasm.js"
     }
   },
   "scripts": {
@@ -37,7 +37,7 @@
   },
   "homepage": "https://github.com/optuna/optuna-dashboard#readme",
   "dependencies": {
-    "@sqlite.org/sqlite-wasm": "^3.45.1-build1"
+    "rustuna": "link:../../../rustuna/rustuna_js"
   },
   "devDependencies": {
     "@optuna/types": "workspace:*",

@@ -1,9 +1,7 @@
 // @optuna/storage has three entry points, one per execution context:
 //
-//   - `@optuna/storage` (index.ts): the storage backends themselves. Importing
-//     it pulls the sqlite-wasm glue into the bundle, so it belongs in the
-//     Worker, or in a consumer that knowingly parses storages on its own
-//     thread.
+//   - `@optuna/storage` (index.ts): the Rustuna adapter. Importing it pulls the
+//     Rustuna WebAssembly glue into the bundle, so it belongs in the Worker.
 //   - `@optuna/storage/worker-client` (worker_client.ts): the client that talks
 //     to the storage Worker. It runs on the UI thread and has no runtime
 //     dependency of its own.
@@ -14,23 +12,14 @@
 //
 // This file is the third: the Worker itself.
 
-import { JournalFileStorage } from "./journal.js"
-import { SQLite3Storage } from "./sqlite.js"
+import { initSync } from "rustuna/web"
+import { RustunaStorage } from "./rustuna.js"
 import type {
   StorageWorkerRequest,
   StorageWorkerRequestType,
   StorageWorkerResponse,
   StorageWorkerResultMap,
 } from "./worker_protocol.js"
-
-// sqlite-wasm tries to install an OPFS VFS while it initializes, which starts a
-// nested Worker for its async proxy. This viewer only opens an in-memory
-// database, and the nested Worker cannot be resolved from a Worker that was
-// started from a VS Code blob: URL. Removing the constructor keeps the OPFS
-// installation from getting that far. The storage Worker never starts a Worker
-// of its own, so this is scoped to the Worker instead of patching globals from
-// the SQLite backend, which also runs on the main thread in other consumers.
-;(globalThis as { Worker?: unknown }).Worker = undefined
 
 type WorkerScope = {
   onmessage: (event: MessageEvent<StorageWorkerRequest>) => void
@@ -40,9 +29,8 @@ type WorkerScope = {
   ) => void
 }
 
-type WorkerStorage = JournalFileStorage | SQLite3Storage
-
-let storage: WorkerStorage | null = null
+let storage: RustunaStorage | null = null
+let rustunaInitialized = false
 
 const workerScope = self as unknown as WorkerScope
 
@@ -104,6 +92,34 @@ const isSQLiteFile = (buffer: ArrayBuffer): boolean => {
   return header === "SQLite format 3\u0000"
 }
 
+const initializeRustuna = async (
+  url: string | undefined,
+  buffer: ArrayBuffer | undefined
+): Promise<void> => {
+  if (rustunaInitialized) {
+    return
+  }
+  let module = buffer
+  if (module === undefined && url !== undefined) {
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new WorkerRequestError(
+        "rustuna_wasm_failed",
+        `Failed to fetch Rustuna wasm: ${response.status}`
+      )
+    }
+    module = await response.arrayBuffer()
+  }
+  if (module === undefined) {
+    throw new WorkerRequestError(
+      "missing_rustuna_wasm",
+      "Rustuna wasm URL or buffer is required"
+    )
+  }
+  initSync({ module })
+  rustunaInitialized = true
+}
+
 const closeStorage = async (): Promise<void> => {
   const currentStorage = storage
   storage = null
@@ -128,49 +144,41 @@ const handleRequest = async (request: StorageWorkerRequest): Promise<void> => {
         if (request.buffer.byteLength === 0) {
           throw new WorkerRequestError("empty_file", "This file is empty")
         }
+        await initializeRustuna(
+          request.rustunaWasmUrl,
+          request.rustunaWasmBuffer
+        )
         if (isSQLiteFile(request.buffer)) {
-          if (
-            request.sqliteWasmUrl === undefined &&
-            request.sqliteWasmBuffer === undefined
-          ) {
-            throw new WorkerRequestError(
-              "missing_sqlite_wasm",
-              "SQLite wasm URL or buffer is required"
-            )
-          }
-          const sqliteStorage = new SQLite3Storage(request.buffer, {
-            sqliteWasmUrl: request.sqliteWasmUrl,
-            sqliteWasmBuffer: request.sqliteWasmBuffer,
-          })
+          let sqliteStorage: RustunaStorage | undefined
           try {
-            await sqliteStorage.waitUntilReady()
-            if (!(await sqliteStorage.hasOptunaSchema())) {
-              throw new WorkerRequestError(
-                "unsupported_format",
-                "Not an Optuna storage: this SQLite database has no Optuna tables"
-              )
-            }
+            sqliteStorage = RustunaStorage.openSQLite(request.buffer)
+            await sqliteStorage.getStudies()
           } catch (error) {
-            await sqliteStorage.close()
-            throw error
+            await sqliteStorage?.close()
+            throw new WorkerRequestError(
+              "unsupported_format",
+              "Not an Optuna storage: this SQLite database has no Optuna tables",
+              error instanceof Error ? error.message : undefined
+            )
           }
           storage = sqliteStorage
           postResult(request.id, "open", {
             format: "sqlite3",
             warnings: [],
-            editDisabledReason: await sqliteStorage.getEditDisabledReason(),
+            editDisabledReason: sqliteStorage.getEditDisabledReason(),
           })
           break
         }
 
-        const journalStorage = new JournalFileStorage(request.buffer)
-        const warnings = journalStorage.getErrors()
+        const journalStorage = RustunaStorage.openJournal(request.buffer)
+        const warnings = journalStorage.getWarnings()
         // A Journal file is read line by line, and a line that cannot be read is
         // collected as a warning rather than raised, which is what keeps a
         // partially written file usable. A file that is not a storage at all
         // would then open as an empty one, so require at least one record. A
         // Journal storage whose studies were all deleted still has records.
         if (journalStorage.appliedRecords === 0) {
+          await journalStorage.close()
           throw new WorkerRequestError(
             "unsupported_format",
             "Not an Optuna storage: no SQLite header and no Journal record",

@@ -2,20 +2,19 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { defineConfig } from 'vite';
 
-const wasmAsset = 'sqlite3.wasm';
+const wasmAsset = 'rustuna_bg.wasm';
 
-// sqlite3.wasm is emitted because sqlite-wasm asks for it as
-// `new URL('sqlite3.wasm', import.meta.url)`, which Vite recognizes as an asset
-// reference. The extension hands the Webview this exact file name, so a version
-// of sqlite-wasm that stopped asking that way would only show up as a 404 at
+// The Rustuna WebAssembly glue asks for this file with `new URL()`, which Vite
+// recognizes as an asset reference. The extension hands the Webview this exact
+// file name, so a binding change that stopped emitting it would only show up at
 // runtime. Fail the build instead.
 const assertWasmEmitted = () => ({
-  name: 'assert-sqlite-wasm-emitted',
+  name: 'assert-rustuna-wasm-emitted',
   writeBundle(options) {
     const wasmPath = path.join(options.dir, wasmAsset);
     if (!fs.existsSync(wasmPath)) {
       this.error(
-        `Expected sqlite-wasm to emit ${wasmAsset}, found: ` +
+        `Expected Rustuna to emit ${wasmAsset}, found: ` +
         fs.readdirSync(options.dir).join(', ')
       );
     }
@@ -39,11 +38,8 @@ export default defineConfig({
         // started from a blob: URL, where nothing resolves relative to the
         // Worker: it has to be a single file with no import left in it.
         //
-        // ES and not IIFE, even though this is one file: Rollup has to replace
-        // import.meta.url when it emits IIFE, and what it replaces it with reads
-        // document.currentScript, which a Worker does not have. sqlite-wasm
-        // stores import.meta.url as it initializes, so an IIFE build throws on
-        // load. In an ES module it stays a harmless string.
+        // ES and not IIFE, even though this is one file: the Rustuna glue uses
+        // import.meta.url for its default module URL.
         format: 'es',
         inlineDynamicImports: true,
         entryFileNames: 'storage-worker.js',

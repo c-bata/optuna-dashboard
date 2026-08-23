@@ -1,6 +1,6 @@
 import {
   type OptunaStorage,
-  type SQLiteWasmSource,
+  type RustunaWasmSource,
   type StorageEdit,
   type StorageWorkerFactory,
   openStorage,
@@ -19,7 +19,7 @@ export type StorageOpenOptions = {
   // which file it is holding.
   name?: string
   workerFactory?: StorageWorkerFactory
-  sqliteWasm?: SQLiteWasmSource
+  rustunaWasm?: RustunaWasmSource
   editDisabledReason?: string
 }
 
@@ -68,9 +68,9 @@ type StorageSession = {
 export const StorageProvider: FC<{
   children: React.ReactNode
   workerFactory?: StorageWorkerFactory
-  sqliteWasm?: SQLiteWasmSource
+  rustunaWasm?: RustunaWasmSource
   onStorageChange?: (buffer: ArrayBuffer) => Promise<void>
-}> = ({ children, workerFactory, sqliteWasm, onStorageChange }) => {
+}> = ({ children, workerFactory, rustunaWasm, onStorageChange }) => {
   const [storage, setActiveStorage] = useState<OptunaStorage | null>(null)
   const [storageName, setStorageName] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -142,7 +142,7 @@ export const StorageProvider: FC<{
         const nextStorage = await openStorage(
           arrayBuffer,
           factory,
-          options.sqliteWasm ?? sqliteWasm
+          options.rustunaWasm ?? rustunaWasm
         )
 
         if (generation !== session.generation) {
@@ -169,7 +169,7 @@ export const StorageProvider: FC<{
         }
       }
     },
-    [reportError, sqliteWasm, workerFactory]
+    [reportError, rustunaWasm, workerFactory]
   )
 
   const applyEdit = useCallback(

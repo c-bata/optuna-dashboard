@@ -1,5 +1,8 @@
-import { JournalFileStorage, SQLite3Storage } from "@optuna/storage"
+import { RustunaStorage } from "@optuna/storage"
+import type { OptunaStorage } from "@optuna/storage/worker-client"
 import * as Optuna from "@optuna/types"
+import rustunaWasmUrl from "rustuna/wasm?url"
+import initRustuna from "rustuna/web"
 
 type SetterOrUpdater<T> = (valOrUpdater: ((currVal: T) => T) | T) => void
 
@@ -19,7 +22,7 @@ const readFile = async (file: File) => {
 }
 
 const loadStudiesFromStorage = async (
-  storage: SQLite3Storage | JournalFileStorage,
+  storage: OptunaStorage,
   setter: SetterOrUpdater<Optuna.Study[]>
 ) => {
   const studySummaries = await storage.getStudies()
@@ -36,11 +39,16 @@ export const loadStorageFromFile = async (
   setStudies: SetterOrUpdater<Optuna.Study[]>
 ) => {
   const arrayBuf = await readFile(file)
+  await initRustuna({ module_or_path: rustunaWasmUrl })
   const header = new Uint8Array(arrayBuf, 0, 16)
   const headerString = new TextDecoder().decode(header)
-  if (headerString === "SQLite format 3\u0000") {
-    await loadStudiesFromStorage(new SQLite3Storage(arrayBuf), setStudies)
-  } else {
-    await loadStudiesFromStorage(new JournalFileStorage(arrayBuf), setStudies)
+  const storage =
+    headerString === "SQLite format 3\u0000"
+      ? RustunaStorage.openSQLite(arrayBuf)
+      : RustunaStorage.openJournal(arrayBuf)
+  try {
+    await loadStudiesFromStorage(storage, setStudies)
+  } finally {
+    await storage.close()
   }
 }
